@@ -1,0 +1,56 @@
+version: '3'
+
+#name: "${USER:-default}_uk-ac-lincoln-lcas-kasm-desktop"
+
+# persist changes in your home directory
+volumes:
+  kasm_lcas_jammy_home:
+    name: "kasm_lcas_jammy_home_${USER:-default}"
+
+networks:
+  kasm_desktop:
+    name: "kasm_lcas_jammy_${USER:-default}"
+
+services:
+  kasm-desktop:
+    container_name: "kasm_lcas_jammy_${USER:-default}"
+    platform: linux/amd64
+    build: 
+      context: .
+      dockerfile: dockerfile-kasm-lcas-jammy-humble
+    restart: "no"
+    shm_size: '512m'
+    environment:
+      # This is the password required when accessing the desktop in the browser, user name is "kasm_user"
+      VNC_PW: "${VNC_PW:-password}"
+      #KASM_EGL_CARD: /dev/dri/card0
+      #KASM_RENDERD: /dev/dri/renderD128
+      DEBUG: false
+      #HW3D: 1
+      #DRINODE: "/dev/dri/renderD128"
+      START_XFCE4: 1
+      #KASM_EGL_CARD: /dev/dri/card0
+      #KASM_RENDERD: /dev/dri/renderD128
+      #HW3D: 1
+      START_PULSEAUDIO: 1
+      KASM_SVC_PRINTER: 0
+    image: lcas.lincoln.ac.uk/lcas/kasm-desktop-ros-humble:nvidia_develop
+    volumes:
+      # persist the home directory in a named valume
+      - kasm_lcas_jammy_home:/home/kasm-user
+      # expose the current directory to easy file exchange 
+      - .:/volume/compose_dir
+      # this is for the obscure case of using openvpn to connect to our VPNs if and when needed
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - kasm_desktop
+    ports:
+      # exposing the main port to access the desktop at https://localhost:6901, port can be overridden by setting HTTPS_PORT
+      - "${HTTPS_PORT:-6901}:6901"
+    security_opt:
+      - seccomp=unconfined
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
