@@ -1,0 +1,6 @@
+[submodule "CMP9767_LIMO"]
+	path = CMP9767_LIMO
+	url = ./CMP9767_LIMO
+[submodule "limo_ros2"]
+	path = limo_ros2
+	url = ./limo_ros2/
