@@ -52,7 +52,9 @@ def generate_launch_description():
     )
     launch_actions.append(simulator)
 
-    map_path = "/opt/ros/lcas_addons/src/limo_ros2/src/limo_navigation/maps/assessment_map.yaml"
+    map_path = os.path.join(
+        get_package_share_directory("pothole_inspection"), "maps", "potholes_20mm.yaml"
+    )
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             [
@@ -73,6 +75,27 @@ def generate_launch_description():
         }.items(),
     )
     launch_actions.append(navigation)
+
+    # navigation = IncludeLaunchDescription(
+    #     PythonLaunchDescriptionSource(
+    #         [
+    #             os.path.join(
+    #                 get_package_share_directory("pothole_inspection"),
+    #                 "launch",
+    #                 "localization.launch.py",
+    #             )
+    #         ]
+    #     ),
+    #     launch_arguments={
+    #         "slam_params_file": os.path.join(
+    #             get_package_share_directory("pothole_inspection"),
+    #             "params",
+    #             "localization.yaml",
+    #         ),
+    #         "slam_toolbox.map_file_name": map_path,
+    #     }.items(),
+    # )
+    # launch_actions.append(navigation)
 
     rviz_config_dir = os.path.join(
         get_package_share_directory("pothole_inspection"),
