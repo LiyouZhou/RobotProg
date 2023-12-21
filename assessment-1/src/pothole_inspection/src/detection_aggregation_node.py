@@ -16,6 +16,64 @@ from geometry_msgs.msg import PoseStamped, PoseArray
 from cv_bridge import CvBridge, CvBridgeError
 from tf2_geometry_msgs import do_transform_pose
 from vision_msgs.msg import Detection2D, Detection2DArray
+from visualization_msgs.msg import Marker, MarkerArray
+
+import numpy as np
+
+
+class PotholeTracker:
+    def __init__(self):
+        self.tracked_potholes = []
+
+    def update(self, new_detections):
+        for new_det in new_detections:
+            new_det_center = np.array(new_det[:2])
+            new_det_radius = new_det[2]
+
+            is_tracked = False
+            for idx, tracked_det in enumerate(self.tracked_potholes):
+                tracked_det_center = np.array(tracked_det[:2])
+                tracked_det_radius = tracked_det[2]
+
+                if (
+                    np.linalg.norm(tracked_det_center - new_det_center)
+                    < new_det_radius + tracked_det_radius
+                ):
+                    self.tracked_potholes[idx] = self.merge(tracked_det, new_det)
+                    is_tracked = True
+                    break
+
+            if not is_tracked:
+                self.add(new_det)
+
+        return
+
+    def add(self, det):
+        self.tracked_potholes.append(det)
+        return
+
+    def merge(self, det1, det2):
+        det1_center = np.array(det1[:2])
+        det2_center = np.array(det2[:2])
+        det1_radius = det1[2]
+        det2_radius = det2[2]
+
+        c1_c2_vec = det2_center - det1_center
+        c1_c2_distance = np.linalg.norm(c1_c2_vec)
+        c1_c2_unit_vec = c1_c2_vec / c1_c2_distance
+
+        p1 = det2_center + c1_c2_unit_vec * det2_radius
+        p2 = det1_center - c1_c2_unit_vec * det1_radius
+
+        det3_radius = np.linalg.norm(p1 - p2) / 2
+        det3_center = (p1 + p2) / 2
+
+        det3 = [det3_center[0], det3_center[1], det3_radius]
+
+        return det3
+
+    def get_tracked_potholes(self):
+        return self.tracked_potholes
 
 
 class DetectionAggregationNode(Node):
@@ -26,7 +84,7 @@ class DetectionAggregationNode(Node):
     # aspect ration between color and depth cameras
     # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the dabai camera parameters
     # color2depth_aspect = (71.0 / 640) / (67.9 / 640)
-    color2depth_aspect = 1.0 # for a simulated camera
+    color2depth_aspect = 1.0  # for a simulated camera
 
     def __init__(self):
         super().__init__("detection_aggregation_node", parameter_overrides=[])
@@ -41,6 +99,10 @@ class DetectionAggregationNode(Node):
 
         self.object_location_pub = self.create_publisher(
             PoseArray, "/limo/object_location", 10
+        )
+
+        self.object_location_marker_pub = self.create_publisher(
+            MarkerArray, "/limo/pothole_location/markers", 10
         )
 
         self.image_sub = self.create_subscription(
@@ -60,6 +122,7 @@ class DetectionAggregationNode(Node):
         self.color_image_shape = [640, 480]
 
         self.pose_stamped_array = PoseArray()
+        self.pothole_tracker = PotholeTracker()
 
     def get_tf_transform(self, target_frame, source_frame, timestamp):
         try:
@@ -129,6 +192,16 @@ class DetectionAggregationNode(Node):
 
         return object_location
 
+    def distance(self, p1: PoseStamped, p2: PoseStamped):
+        """
+        Calculate the distance between 2 PoseStamped points in the x-y plane
+        """
+        # assume they are at the same z-level
+        v1 = np.array([p1.pose.position.x, p1.pose.position.y])
+        v2 = np.array([p2.pose.position.x, p2.pose.position.y])
+
+        return np.linalg.norm(v1 - v2)
+
     def pothole_bbox_callback(self, msg: Detection2DArray):
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
@@ -138,22 +211,88 @@ class DetectionAggregationNode(Node):
             return
 
         self.image_depth = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
+
+        pothole_detections = []
         for detection in msg.detections:
             object_location = self.image_coords_to_world(
                 detection.bbox.center.position.x, detection.bbox.center.position.y
             )
+            top = self.image_coords_to_world(
+                detection.bbox.center.position.x + detection.bbox.size_x / 2,
+                detection.bbox.center.position.y,
+            )
+            bottom = self.image_coords_to_world(
+                detection.bbox.center.position.x - +detection.bbox.size_x / 2,
+                detection.bbox.center.position.y,
+            )
+            left = self.image_coords_to_world(
+                detection.bbox.center.position.x,
+                detection.bbox.center.position.y - detection.bbox.size_y / 2,
+            )
+            right = self.image_coords_to_world(
+                detection.bbox.center.position.x,
+                detection.bbox.center.position.y + detection.bbox.size_y / 2,
+            )
+
+            print(
+                "top, bottom",
+                self.distance(top, bottom),
+                self.distance(left, right),
+                type(top),
+            )
+
+            pothole_radius = max(self.distance(top, bottom), self.distance(left, right))
 
             transform = self.get_tf_transform(
                 "odom", object_location.header.frame_id, msg.header.stamp
             )
-            p_camera = do_transform_pose(object_location.pose, transform)
+            if transform is not None:
+                p_camera = do_transform_pose(object_location.pose, transform)
 
-            object_location.header.frame_id = "odom"
-            object_location.pose = p_camera
+                object_location.header.frame_id = "odom"
+                object_location.pose = p_camera
+
+                self.pose_stamped_array.header.frame_id = (
+                    object_location.header.frame_id
+                )
+                self.pose_stamped_array.poses.append(object_location.pose)
+                pothole_detections.append(
+                    [
+                        object_location.pose.position.x,
+                        object_location.pose.position.y,
+                        pothole_radius,
+                    ]
+                )
+
+        self.pothole_tracker.update(pothole_detections)
+
+        ma = MarkerArray()
+        self.pose_stamped_array.poses = []
+        for idx, pothole in enumerate(self.pothole_tracker.get_tracked_potholes()):
+            m = Marker()
+            m.header.frame_id = "odom"
+            m.ns = "pothole"
+            m.id = idx + 1
+            m.type = Marker.CYLINDER
+            m.pose.position.x = pothole[0]
+            m.pose.position.y = pothole[1]
+            m.pose.position.z = 0.0
+            # m.scale.x = m.scale.y = pothole[2]
+            # m.scale.z = 0.1
+
+            m.scale.x = m.scale.y = m.scale.z = 1.0
+
+            ma.markers.append(m)
+
+            object_location = PoseStamped()
+            object_location.header.frame_id = m.header.frame_id
+            object_location.pose = m.pose
 
             self.pose_stamped_array.header.frame_id = object_location.header.frame_id
             self.pose_stamped_array.poses.append(object_location.pose)
 
+        print(len(ma.markers))
+        self.object_location_marker_pub.publish(ma)
         self.object_location_pub.publish(self.pose_stamped_array)
 
 
