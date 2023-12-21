@@ -80,6 +80,12 @@ class DetectionAggregationNode(Node):
         self.image_depth_ros = data
 
     def image_coords_to_world(self, x, y):
+        # make sure x, y does not go out of bounds
+        x = max([x, 0])
+        x = min([x, self.color_image_shape[0] - 1])
+        y = max([y, 0])
+        y = min([y, self.color_image_shape[1] - 1])
+
         # "map" from color to depth image
         depth_height, depth_width = self.image_depth.shape[:2]
         depth_coords = (
@@ -89,14 +95,13 @@ class DetectionAggregationNode(Node):
             + (y - self.color_image_shape[1] / 2) * self.color2depth_aspect,
         )
 
-
         print(self.image_depth.shape[0], self.image_depth.shape[1])
         print("image coords: ", x, y)
         print("depth coords: ", depth_coords)
 
         # get the depth reading at the centroid location
         depth_value = self.image_depth[
-            int(depth_coords[0]), int(depth_coords[1])
+            int(depth_coords[1]), int(depth_coords[0])
         ]  # you might need to do some boundary checking first!
 
         print("depth value: ", depth_value)
