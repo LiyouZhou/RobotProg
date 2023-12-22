@@ -277,10 +277,15 @@ class DetectionAggregationNode(Node):
             m.pose.position.x = pothole[0]
             m.pose.position.y = pothole[1]
             m.pose.position.z = 0.0
-            # m.scale.x = m.scale.y = pothole[2]
-            # m.scale.z = 0.1
+            m.scale.x = m.scale.y = pothole[2]
+            m.scale.z = 0.1
 
-            m.scale.x = m.scale.y = m.scale.z = 1.0
+            m.action = Marker.ADD
+
+            m.color.r = 0.0;
+            m.color.g = 1.0;
+            m.color.b = 0.0;
+            m.color.a = 1.0;
 
             ma.markers.append(m)
 
