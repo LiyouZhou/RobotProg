@@ -1,10 +1,9 @@
+#! /usr/bin/env python3
+
 # Python libs
 import rclpy
 from rclpy.node import Node
 from rclpy import qos
-
-# OpenCV
-import cv2
 
 # ROS libraries
 import image_geometry
@@ -13,9 +12,9 @@ from tf2_ros import Buffer, TransformListener
 # ROS Messages
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped, PoseArray
-from cv_bridge import CvBridge, CvBridgeError
+from cv_bridge import CvBridge
 from tf2_geometry_msgs import do_transform_pose
-from vision_msgs.msg import Detection2D, Detection2DArray
+from vision_msgs.msg import Detection2DArray
 from visualization_msgs.msg import Marker, MarkerArray
 
 import numpy as np
@@ -277,8 +276,8 @@ class DetectionAggregationNode(Node):
             m.pose.position.x = pothole[0]
             m.pose.position.y = pothole[1]
             m.pose.position.z = 0.0
-            m.scale.x = m.scale.y = pothole[2]
-            m.scale.z = 0.1
+            m.scale.x = m.scale.y = pothole[2] * 0.8
+            m.scale.z = 0.03
 
             m.action = Marker.ADD
 
