@@ -97,6 +97,19 @@ def generate_launch_description():
     # )
     # launch_actions.append(navigation)
 
+    pothole_detection = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [
+                os.path.join(
+                    get_package_share_directory("pothole_inspection"),
+                    "launch",
+                    "pothole_detection.launch.py",
+                )
+            ]
+        )
+    )
+    launch_actions.append(pothole_detection)
+
     rviz_config_dir = os.path.join(
         get_package_share_directory("pothole_inspection"),
         "rviz",

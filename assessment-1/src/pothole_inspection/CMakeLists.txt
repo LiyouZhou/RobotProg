@@ -24,8 +24,21 @@ if(BUILD_TESTING)
 endif()
 
 install(
-    DIRECTORY launch params rviz maps
-    launch DESTINATION share/${PROJECT_NAME}/
+    DIRECTORY
+    launch
+    params
+    rviz
+    maps
+    models
+    DESTINATION share/${PROJECT_NAME}/
+)
+
+# Install Python executables
+install(
+  PROGRAMS
+  src/detection_aggregation_node.py
+  src/object_detection_node.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
