@@ -295,7 +295,26 @@ class DetectionAggregationNode(Node):
             self.pose_stamped_array.header.frame_id = object_location.header.frame_id
             self.pose_stamped_array.poses.append(object_location.pose)
 
-        print(len(ma.markers))
+        m = Marker()
+        m.header.frame_id = "odom"
+        m.ns = "pothole_count"
+        m.id = 0
+        m.type = Marker.TEXT_VIEW_FACING
+        m.pose.position.x = 0.0
+        m.pose.position.y = -1.8
+        m.pose.position.z = 0.0
+        m.scale.x = m.scale.y = m.scale.z = 0.3
+        m.action = Marker.ADD
+        m.color.r = 0.0;
+        m.color.g = 1.0;
+        m.color.b = 0.0;
+        m.color.a = 1.0;
+        s = f"Potholes Detected {len(ma.markers)}"
+        m.text = s;
+        self.get_logger().info(s)
+
+        ma.markers.append(m)
+
         self.object_location_marker_pub.publish(ma)
         self.object_location_pub.publish(self.pose_stamped_array)
 
