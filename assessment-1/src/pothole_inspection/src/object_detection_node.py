@@ -82,6 +82,11 @@ class PotholeDetectionNode(Node):
                 center_y = (ymin + ymax) / 2.0
                 width = xmax - xmin
                 height = ymax - ymin
+
+                # don't trust small detections 
+                if width < 10 or height < 10:
+                    continue
+
                 det = Detection2D()
 
                 det.bbox.center.position.x = float(center_x)

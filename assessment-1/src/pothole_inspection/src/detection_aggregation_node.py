@@ -34,9 +34,10 @@ class PotholeTracker:
                 tracked_det_center = np.array(tracked_det[:2])
                 tracked_det_radius = tracked_det[2]
 
+                # if the centres are really close together, merge the detections
                 if (
                     np.linalg.norm(tracked_det_center - new_det_center)
-                    < new_det_radius + tracked_det_radius
+                    < (new_det_radius + tracked_det_radius) * 0.7
                 ):
                     self.tracked_potholes[idx] = self.merge(tracked_det, new_det)
                     is_tracked = True
