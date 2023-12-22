@@ -68,7 +68,7 @@ class PotholeDetectionNode(Node):
         x = transforms(img_tensor)
         pred = self.model([x.to("cuda")])[1][0]
 
-        print(pred, x.size())
+        # print(pred, x.size())
         boxes = pred["boxes"]
         scores = pred["scores"]
 

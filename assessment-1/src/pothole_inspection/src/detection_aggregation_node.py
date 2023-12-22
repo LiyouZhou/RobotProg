@@ -157,16 +157,16 @@ class DetectionAggregationNode(Node):
             + (y - self.color_image_shape[1] / 2) * self.color2depth_aspect,
         )
 
-        print(self.image_depth.shape[0], self.image_depth.shape[1])
-        print("image coords: ", x, y)
-        print("depth coords: ", depth_coords)
+        # print(self.image_depth.shape[0], self.image_depth.shape[1])
+        # print("image coords: ", x, y)
+        # print("depth coords: ", depth_coords)
 
         # get the depth reading at the centroid location
         depth_value = self.image_depth[
             int(depth_coords[1]), int(depth_coords[0])
         ]  # you might need to do some boundary checking first!
 
-        print("depth value: ", depth_value)
+        # print("depth value: ", depth_value)
 
         # calculate object's 3d location in camera coords
         camera_coords = self.camera_model.projectPixelTo3dRay(
@@ -179,7 +179,7 @@ class DetectionAggregationNode(Node):
             x * depth_value for x in camera_coords
         ]  # multiply the vector by depth
 
-        print("camera coords: ", camera_coords)
+        # print("camera coords: ", camera_coords)
 
         # define a point in camera coordinates
         object_location = PoseStamped()
@@ -233,12 +233,12 @@ class DetectionAggregationNode(Node):
                 detection.bbox.center.position.y + detection.bbox.size_y / 2,
             )
 
-            print(
-                "top, bottom",
-                self.distance(top, bottom),
-                self.distance(left, right),
-                type(top),
-            )
+            # print(
+            #     "top, bottom",
+            #     self.distance(top, bottom),
+            #     self.distance(left, right),
+            #     type(top),
+            # )
 
             pothole_radius = max(self.distance(top, bottom), self.distance(left, right))
 
