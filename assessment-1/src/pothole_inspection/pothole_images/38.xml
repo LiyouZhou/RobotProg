@@ -1,0 +1,35 @@
+<annotation>
+    <folder>pothole_images</folder>
+    <filename>38.jpg</filename>
+    <size>
+        <width>640</width>
+        <height>480</height>
+        <depth>3</depth>
+    </size>
+    <object>
+        <name>pothole</name>
+        <pose>Unspecified</pose>
+        <truncated>0</truncated>
+        <occluded>0</occluded>
+        <difficult>0</difficult>
+        <bndbox>
+            <xmin>579.095337</xmin>
+            <ymin>324.325012</ymin>
+            <xmax>622.028137</xmax>
+            <ymax>332.308319</ymax>
+        </bndbox>
+    </object>
+    <object>
+        <name>pothole</name>
+        <pose>Unspecified</pose>
+        <truncated>0</truncated>
+        <occluded>0</occluded>
+        <difficult>0</difficult>
+        <bndbox>
+            <xmin>454.290649</xmin>
+            <ymin>332.308319</ymin>
+            <xmax>529.173462</xmax>
+            <ymax>353.264587</ymax>
+        </bndbox>
+    </object>
+</annotation>
