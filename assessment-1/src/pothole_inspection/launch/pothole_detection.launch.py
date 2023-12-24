@@ -31,9 +31,17 @@ def generate_launch_description():
         output="screen",
     )
 
+    start_waypoint_mission_node = Node(
+        package="pothole_inspection",
+        executable="waypoint_mission_node.py",
+        name="waypoint_mission_node",
+        output="screen",
+    )
+
     ld = LaunchDescription()
 
     ld.add_action(start_object_detection_node)
     ld.add_action(start_detection_aggregation_node)
+    ld.add_action(start_waypoint_mission_node)
 
     return ld

@@ -14,6 +14,7 @@
   <test_depend>ament_lint_common</test_depend>
 
   <depend>ros-humble-vision-msgs-rviz-plugins</depend>
+  <depend>ros-humble-rosbag2-storage-mcap</depend>
   <depend>ros-humble-vision-msgs</depend>
   <depend>rclpy</depend>
 
