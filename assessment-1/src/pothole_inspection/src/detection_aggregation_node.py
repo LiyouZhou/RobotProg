@@ -302,7 +302,7 @@ class DetectionAggregationNode(Node):
         m.id = 0
         m.type = Marker.TEXT_VIEW_FACING
         m.pose.position.x = 0.0
-        m.pose.position.y = -1.8
+        m.pose.position.y = -1.5
         m.pose.position.z = 0.0
         m.scale.x = m.scale.y = m.scale.z = 0.3
         m.action = Marker.ADD
