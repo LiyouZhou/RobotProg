@@ -282,10 +282,10 @@ class DetectionAggregationNode(Node):
 
             m.action = Marker.ADD
 
-            m.color.r = 0.0;
-            m.color.g = 1.0;
-            m.color.b = 0.0;
-            m.color.a = 1.0;
+            m.color.r = 0.0
+            m.color.g = 1.0
+            m.color.b = 0.0
+            m.color.a = 1.0
 
             ma.markers.append(m)
 
@@ -306,12 +306,12 @@ class DetectionAggregationNode(Node):
         m.pose.position.z = 0.0
         m.scale.x = m.scale.y = m.scale.z = 0.3
         m.action = Marker.ADD
-        m.color.r = 0.0;
-        m.color.g = 1.0;
-        m.color.b = 0.0;
-        m.color.a = 1.0;
+        m.color.r = 0.0
+        m.color.g = 1.0
+        m.color.b = 0.0
+        m.color.a = 1.0
         s = f"Potholes Detected {len(ma.markers)}"
-        m.text = s;
+        m.text = s
         self.get_logger().info(s)
 
         ma.markers.append(m)

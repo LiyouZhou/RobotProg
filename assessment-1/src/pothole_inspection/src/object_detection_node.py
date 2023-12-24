@@ -83,7 +83,7 @@ class PotholeDetectionNode(Node):
                 width = xmax - xmin
                 height = ymax - ymin
 
-                # don't trust small detections 
+                # don't trust small detections
                 if width < 10 or height < 10:
                     continue
 

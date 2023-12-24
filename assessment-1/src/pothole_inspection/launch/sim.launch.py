@@ -76,27 +76,6 @@ def generate_launch_description():
     )
     launch_actions.append(navigation)
 
-    # navigation = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         [
-    #             os.path.join(
-    #                 get_package_share_directory("pothole_inspection"),
-    #                 "launch",
-    #                 "localization.launch.py",
-    #             )
-    #         ]
-    #     ),
-    #     launch_arguments={
-    #         "slam_params_file": os.path.join(
-    #             get_package_share_directory("pothole_inspection"),
-    #             "params",
-    #             "localization.yaml",
-    #         ),
-    #         "slam_toolbox.map_file_name": map_path,
-    #     }.items(),
-    # )
-    # launch_actions.append(navigation)
-
     pothole_detection = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             [
