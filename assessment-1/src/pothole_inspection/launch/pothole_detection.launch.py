@@ -32,6 +32,15 @@ def generate_launch_description():
     )
 
     start_waypoint_mission_node = Node(
+        parameters=[
+            {
+                "waypoint_file_path": os.path.join(
+                    get_package_share_directory("pothole_inspection"),
+                    "waypoints",
+                    "waypoints.mcap",
+                )
+            }
+        ],
         package="pothole_inspection",
         executable="waypoint_mission_node.py",
         name="waypoint_mission_node",

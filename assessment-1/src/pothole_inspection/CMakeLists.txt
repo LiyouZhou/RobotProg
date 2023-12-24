@@ -30,6 +30,7 @@ install(
     rviz
     maps
     models
+    waypoints
     DESTINATION share/${PROJECT_NAME}/
 )
 
