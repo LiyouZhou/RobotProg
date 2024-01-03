@@ -8,10 +8,24 @@ from rclpy import qos
 from mcap_ros2.decoder import DecoderFactory
 from mcap.reader import make_reader
 
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+from sensor_msgs.msg import Imu
 from vision_msgs.msg import Detection2DArray
+from std_srvs.srv import Empty
 
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+import numpy as np
+from enum import Enum
+
+
+class State(Enum):
+    INIT_LOCALISATION = 1
+    START_SPIN = 2
+    SPINING = 3
+    SPIN_BACK = 4
+    START_WAYPOINT_FOLLOWING = 5
+    WAYPOINT_FOLLOWING = 6
+    FNISHED = 7
 
 
 class WaypointMissionNode(Node):
@@ -57,27 +71,113 @@ class WaypointMissionNode(Node):
             Detection2DArray, "/potholes/bbox", self.detection_subscriber_callback, 10
         )
 
+        self.pose_subscriber = self.create_subscription(
+            Imu, "/imu", self.imu_callback, 10
+        )
+        self.is_rotating = None
+
+        self.pose_subscriber = self.create_subscription(
+            PoseWithCovarianceStamped, "/amcl_pose", self.pose_callback, 10
+        )
+        self.pose_converged = None
+
+        self.global_localisation_client = self.create_client(
+            Empty, "/reinitialize_global_localization"
+        )
+        self.nomotion_update_client = self.create_client(
+            Empty, "/request_nomotion_update"
+        )
+
+        self.state = State.INIT_LOCALISATION
+        self.timer = self.create_timer(1, self.state_machine)
+
+    def imu_callback(self, msg: Imu):
+        """
+        Deduce if the robot is rotating from the imu readings
+        """
+        if all(
+            np.abs(i) < 0.01
+            for i in [
+                msg.angular_velocity.x,
+                msg.angular_velocity.y,
+                msg.angular_velocity.z,
+            ]
+        ):
+            self.is_rotating = False
+        else:
+            self.is_rotating = True
+
+    def pose_callback(self, msg: PoseWithCovarianceStamped):
+        """
+        Deduce if amcl has converged from the convariance of the published poses
+        """
+        if all(np.abs(i) < 0.01 for i in msg.pose.covariance):
+            self.pose_converged = True
+        else:
+            self.pose_converged = False
+
     def detection_subscriber_callback(self, msg):
         self.detection_counter += 1
 
-        # wait for detection stack to stablise and then start way point following
-        if self.detection_counter == 5:
-            self.navigator.waitUntilNav2Active()
-            self.nav_start = self.navigator.get_clock().now()
-            self.navigator.followWaypoints(self.waypoints)
-            self.timer = self.create_timer(1, self.progress_monitor)
+    def state_machine(self):
+        self.get_logger().info(f"current_state is {self.state}")
 
-    def progress_monitor(self):
-        if not self.navigator.isTaskComplete():
-            feedback = self.navigator.getFeedback()
-            self.get_logger().info(
-                "Executing current waypoint: "
-                + str(feedback.current_waypoint + 1)
-                + "/"
-                + str(len(self.waypoints))
-            )
-        else:
-            # Do something depending on the return code
+        # reset amcl so it does not assume initial position of robot
+        if self.state == State.INIT_LOCALISATION:
+            self.navigator.waitUntilNav2Active()
+            self.global_localisation_client.wait_for_service()
+            self.global_localisation_client.call_async(Empty.Request())
+            self.state = State.START_SPIN
+        # Spin robot a bit to help localise
+        elif self.state == State.START_SPIN:
+            self.navigator.spin(-np.pi / 8)
+            self.state = State.SPINING
+        # Wait for localisation convergance
+        elif self.state == State.SPINING:
+            # Check if localisation has converged
+            if self.pose_converged == True:
+                self.state = State.START_WAYPOINT_FOLLOWING
+            elif (
+                self.is_rotating is not None and self.is_rotating is False
+            ):  # Check if spin has finished, if finished, spin the other way
+                self.navigator.spin(np.pi / 4)
+                self.state = State.SPIN_BACK
+
+            # force the amcl localisation stack to update
+            self.nomotion_update_client.call_async(Empty.Request())
+        # Wait for localisation convergance
+        elif self.state == State.SPIN_BACK:
+            # Check if localisation has converged
+            if self.pose_converged == True:
+                self.state = State.START_WAYPOINT_FOLLOWING
+            elif self.is_rotating is not None and self.is_rotating is False:
+                self.navigator.spin(-np.pi / 4)
+                self.state = State.SPINING
+                self.get_logger().error("waiting for localisation convergance")
+
+            # force the amcl localisation stack to update
+            self.nomotion_update_client.call_async(Empty.Request())
+        # Start to follow a list of waypoints
+        elif self.state == State.START_WAYPOINT_FOLLOWING:
+            # wait for detection stack to stablise and then start waypoint following
+            if self.detection_counter > 5:
+                self.navigator.waitUntilNav2Active()
+                self.nav_start = self.navigator.get_clock().now()
+                self.navigator.followWaypoints(self.waypoints)
+                self.state = State.WAYPOINT_FOLLOWING
+        # Continue to monitor the progress of waypoint following
+        elif self.state == State.WAYPOINT_FOLLOWING:
+            if not self.navigator.isTaskComplete():
+                feedback = self.navigator.getFeedback()
+                self.get_logger().info(
+                    "Executing current waypoint: "
+                    + str(feedback.current_waypoint + 1)
+                    + "/"
+                    + str(len(self.waypoints))
+                )
+            else:
+                self.state = State.FNISHED
+        elif self.state == State.FNISHED:
             result = self.navigator.getResult()
             if result == TaskResult.SUCCEEDED:
                 print("Goal succeeded!")
