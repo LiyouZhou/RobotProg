@@ -42,7 +42,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             [
                 os.path.join(
-                    get_package_share_directory("limo_gazebosim"),
+                    get_package_share_directory("pothole_inspection"),
                     "launch",
                     "limo_gazebo_diff.launch.py",
                 )
