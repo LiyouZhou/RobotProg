@@ -31,6 +31,14 @@ def generate_launch_description():
         output="screen",
     )
 
+    skip_localisation_init = LaunchConfiguration("skip_localisation_init")
+    declare_skip_localisation_init = DeclareLaunchArgument(
+        "skip_localisation_init",
+        default_value="false",
+        description="Skip initial localisation and start waypoint following.",
+    )
+
+    print("skip_localisation_init", skip_localisation_init)
     start_waypoint_mission_node = Node(
         parameters=[
             {
@@ -39,7 +47,8 @@ def generate_launch_description():
                     "waypoints",
                     "waypoints.mcap",
                 )
-            }
+            },
+            {"skip_localisation_init":  skip_localisation_init},
         ],
         package="pothole_inspection",
         executable="waypoint_mission_node.py",
@@ -49,6 +58,7 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
+    ld.add_action(declare_skip_localisation_init)
     ld.add_action(start_object_detection_node)
     ld.add_action(start_detection_aggregation_node)
     ld.add_action(start_waypoint_mission_node)

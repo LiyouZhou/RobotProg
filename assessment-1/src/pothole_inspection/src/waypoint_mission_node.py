@@ -35,6 +35,10 @@ class WaypointMissionNode(Node):
             "waypoint_file_path",
             "/volume/compose_dir/assessment-1/src/pothole_inspection/waypoints/waypoints.mcap",
         )
+        self.declare_parameter(
+            "skip_localisation_init",
+            False,
+        )
         self.waypoints = []
 
         with open(
@@ -65,22 +69,18 @@ class WaypointMissionNode(Node):
                 break
 
         self.navigator = BasicNavigator()
-
         self.detection_counter = 0
         self.detection_subscriber = self.create_subscription(
             Detection2DArray, "/potholes/bbox", self.detection_subscriber_callback, 10
         )
-
         self.pose_subscriber = self.create_subscription(
             Imu, "/imu", self.imu_callback, 10
         )
         self.is_rotating = None
-
         self.pose_subscriber = self.create_subscription(
             PoseWithCovarianceStamped, "/amcl_pose", self.pose_callback, 10
         )
         self.pose_converged = None
-
         self.global_localisation_client = self.create_client(
             Empty, "/reinitialize_global_localization"
         )
@@ -89,6 +89,9 @@ class WaypointMissionNode(Node):
         )
 
         self.state = State.INIT_LOCALISATION
+        if self.get_parameter("skip_localisation_init").get_parameter_value().bool_value:
+            self.get_logger().info("Skipping initial localisation and starting waypoint following.")
+            self.state = State.START_WAYPOINT_FOLLOWING
         self.timer = self.create_timer(1, self.state_machine)
 
     def imu_callback(self, msg: Imu):

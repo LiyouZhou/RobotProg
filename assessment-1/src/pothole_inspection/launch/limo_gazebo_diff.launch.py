@@ -21,10 +21,10 @@ def generate_launch_description():
   robot_name_in_model = 'limo_gazebosim'
 
   # Pose where we want to spawn the robot
-  spawn_x_val = '0.0'
-  spawn_y_val = '0'
-  spawn_z_val = '0.0'
-  spawn_yaw_val = '0.00'
+  spawn_x_val = os.getenv("SPAWN_X", default="0.0")
+  spawn_y_val = os.getenv("SPAWN_Y", default="0.0")
+  spawn_z_val = os.getenv("SPAWN_Z", default="0.0")
+  spawn_yaw_val = os.getenv("SPAWN_YAW", default="0.0")
  
   ############ You do not need to change anything below this line #############
  
