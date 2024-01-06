@@ -56,7 +56,7 @@ class PotholeDetectionNode(Node):
                 .get_parameter_value()
                 .string_value
             )
-            self.model = torch.load(model_path)
+            self.model = torch.jit.load(model_path)
             self.model.eval()
 
         img_tensor = torch.tensor(np.frombuffer(image.data, dtype=np.uint8)).to("cuda")
