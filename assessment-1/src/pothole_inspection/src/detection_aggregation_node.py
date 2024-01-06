@@ -16,64 +16,16 @@ from cv_bridge import CvBridge
 from tf2_geometry_msgs import do_transform_pose
 from vision_msgs.msg import Detection2DArray
 from visualization_msgs.msg import Marker, MarkerArray
+from pothole_inspection.msg import Detection2DArrayWithSourceImage
 
 import numpy as np
+import time
+import os
 
+from pothole_tracker import PotholeTracker, Pothole
+from utils import project3dToPixel
 
-class PotholeTracker:
-    def __init__(self):
-        self.tracked_potholes = []
-
-    def update(self, new_detections):
-        for new_det in new_detections:
-            new_det_center = np.array(new_det[:2])
-            new_det_radius = new_det[2]
-
-            is_tracked = False
-            for idx, tracked_det in enumerate(self.tracked_potholes):
-                tracked_det_center = np.array(tracked_det[:2])
-                tracked_det_radius = tracked_det[2]
-
-                # if the centres are really close together, merge the detections
-                if (
-                    np.linalg.norm(tracked_det_center - new_det_center)
-                    < (new_det_radius + tracked_det_radius) * 0.7
-                ):
-                    self.tracked_potholes[idx] = self.merge(tracked_det, new_det)
-                    is_tracked = True
-                    break
-
-            if not is_tracked:
-                self.add(new_det)
-
-        return
-
-    def add(self, det):
-        self.tracked_potholes.append(det)
-        return
-
-    def merge(self, det1, det2):
-        det1_center = np.array(det1[:2])
-        det2_center = np.array(det2[:2])
-        det1_radius = det1[2]
-        det2_radius = det2[2]
-
-        c1_c2_vec = det2_center - det1_center
-        c1_c2_distance = np.linalg.norm(c1_c2_vec)
-        c1_c2_unit_vec = c1_c2_vec / c1_c2_distance
-
-        p1 = det2_center + c1_c2_unit_vec * det2_radius
-        p2 = det1_center - c1_c2_unit_vec * det1_radius
-
-        det3_radius = np.linalg.norm(p1 - p2) / 2
-        det3_center = (p1 + p2) / 2
-
-        det3 = [det3_center[0], det3_center[1], det3_radius]
-
-        return det3
-
-    def get_tracked_potholes(self):
-        return self.tracked_potholes
+from rclpy.executors import MultiThreadedExecutor
 
 
 class DetectionAggregationNode(Node):
@@ -105,14 +57,17 @@ class DetectionAggregationNode(Node):
             MarkerArray, "/limo/pothole_location/markers", 10
         )
 
-        self.image_sub = self.create_subscription(
-            Detection2DArray, "/potholes/bbox", self.pothole_bbox_callback, 10
+        self.bbox_sub = self.create_subscription(
+            Detection2DArrayWithSourceImage,
+            "/potholes/bbox",
+            self.pothole_bbox_callback,
+            10,
         )
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.image_sub = self.create_subscription(
+        self.depth_image_sub = self.create_subscription(
             Image,
             "/limo/depth_camera_link/depth/image_raw",
             self.image_depth_callback,
@@ -123,6 +78,10 @@ class DetectionAggregationNode(Node):
 
         self.pose_stamped_array = PoseArray()
         self.pothole_tracker = PotholeTracker()
+        self.img_count = 0
+
+        self.pothole_image_timer = self.create_timer(10, self.produce_pothole_images)
+        self.pothole_image_timer_start_time = time.time()
 
     def get_tf_transform(self, target_frame, source_frame, timestamp):
         try:
@@ -142,7 +101,7 @@ class DetectionAggregationNode(Node):
     def image_depth_callback(self, data):
         self.image_depth_ros = data
 
-    def image_coords_to_world(self, x, y):
+    def image_coords_to_camera_coords(self, x, y):
         # make sure x, y does not go out of bounds
         x = max([x, 0])
         x = min([x, self.color_image_shape[0] - 1])
@@ -158,29 +117,23 @@ class DetectionAggregationNode(Node):
             + (y - self.color_image_shape[1] / 2) * self.color2depth_aspect,
         )
 
-        # print(self.image_depth.shape[0], self.image_depth.shape[1])
-        # print("image coords: ", x, y)
-        # print("depth coords: ", depth_coords)
-
         # get the depth reading at the centroid location
         depth_value = self.image_depth[
             int(depth_coords[1]), int(depth_coords[0])
         ]  # you might need to do some boundary checking first!
 
-        # print("depth value: ", depth_value)
-
         # calculate object's 3d location in camera coords
+        rectified_point = self.camera_model.rectifyPoint((x, y))
         camera_coords = self.camera_model.projectPixelTo3dRay(
-            (x, y)
+            rectified_point
         )  # project the image coords (x,y) into 3D ray in camera coords
-        camera_coords = [
-            x / camera_coords[2] for x in camera_coords
-        ]  # adjust the resulting vector so that z = 1
+
+        # make a unit vector along the ray
+        camera_coords = [x / np.linalg.norm(camera_coords) for x in camera_coords]
+
         camera_coords = [
             x * depth_value for x in camera_coords
         ]  # multiply the vector by depth
-
-        # print("camera coords: ", camera_coords)
 
         # define a point in camera coordinates
         object_location = PoseStamped()
@@ -202,7 +155,7 @@ class DetectionAggregationNode(Node):
 
         return np.linalg.norm(v1 - v2)
 
-    def pothole_bbox_callback(self, msg: Detection2DArray):
+    def pothole_bbox_callback(self, msg: Detection2DArrayWithSourceImage):
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
             return
@@ -212,40 +165,43 @@ class DetectionAggregationNode(Node):
 
         self.image_depth = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
 
+        if len(msg.detection_array.detections) == 0:
+            return
+
+        source_img = self.bridge.imgmsg_to_cv2(msg.source_image)
+
         pothole_detections = []
-        for detection in msg.detections:
-            object_location = self.image_coords_to_world(
+        for detection in msg.detection_array.detections:
+            object_location = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x, detection.bbox.center.position.y
             )
-            top = self.image_coords_to_world(
+            top = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x + detection.bbox.size_x / 2,
                 detection.bbox.center.position.y,
             )
-            bottom = self.image_coords_to_world(
+            bottom = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x - +detection.bbox.size_x / 2,
                 detection.bbox.center.position.y,
             )
-            left = self.image_coords_to_world(
+            left = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x,
                 detection.bbox.center.position.y - detection.bbox.size_y / 2,
             )
-            right = self.image_coords_to_world(
+            right = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x,
                 detection.bbox.center.position.y + detection.bbox.size_y / 2,
             )
 
-            # print(
-            #     "top, bottom",
-            #     self.distance(top, bottom),
-            #     self.distance(left, right),
-            #     type(top),
-            # )
-
-            pothole_radius = max(self.distance(top, bottom), self.distance(left, right))
+            pothole_radius = (
+                max(self.distance(top, bottom), self.distance(left, right)) / 2
+            )
 
             transform = self.get_tf_transform(
-                "odom", object_location.header.frame_id, msg.header.stamp
+                "odom",
+                object_location.header.frame_id,
+                msg.detection_array.header.stamp,
             )
+
             if transform is not None:
                 p_camera = do_transform_pose(object_location.pose, transform)
 
@@ -256,13 +212,18 @@ class DetectionAggregationNode(Node):
                     object_location.header.frame_id
                 )
                 self.pose_stamped_array.poses.append(object_location.pose)
-                pothole_detections.append(
-                    [
-                        object_location.pose.position.x,
-                        object_location.pose.position.y,
-                        pothole_radius,
-                    ]
+                pothole = Pothole(
+                    object_location.pose.position.x,
+                    object_location.pose.position.y,
+                    object_location.pose.position.z,
+                    pothole_radius,
+                    source_img,
+                    self.get_tf_transform(
+                        "depth_link", "odom", msg.detection_array.header.stamp
+                    ),
                 )
+
+                pothole_detections.append(pothole)
 
         self.pothole_tracker.update(pothole_detections)
 
@@ -271,13 +232,14 @@ class DetectionAggregationNode(Node):
         for idx, pothole in enumerate(self.pothole_tracker.get_tracked_potholes()):
             m = Marker()
             m.header.frame_id = "odom"
+            m.header.stamp = msg.detection_array.header.stamp
             m.ns = "pothole"
             m.id = idx + 1
             m.type = Marker.CYLINDER
-            m.pose.position.x = pothole[0]
-            m.pose.position.y = pothole[1]
-            m.pose.position.z = 0.0
-            m.scale.x = m.scale.y = pothole[2] * 0.8
+            m.pose.position.x = pothole.x
+            m.pose.position.y = pothole.y
+            m.pose.position.z = pothole.z
+            m.scale.x = m.scale.y = pothole.radius * 2
             m.scale.z = 0.03
 
             m.action = Marker.ADD
@@ -319,12 +281,22 @@ class DetectionAggregationNode(Node):
         self.object_location_marker_pub.publish(ma)
         self.object_location_pub.publish(self.pose_stamped_array)
 
+    def produce_pothole_images(self):
+        time_elapsed = int(time.time() - self.pothole_image_timer_start_time)
+        for pth in self.pothole_tracker.get_tracked_potholes():
+            self.get_logger().info(f"pothole {pth.x} {pth.y} {pth.z} {pth.radius}")
+            pth.image_folder = f"/volume/compose_dir/debug_images/{time_elapsed}/"
+            os.makedirs(pth.image_folder, exist_ok=True)
+            pth.get_pothole_image(self.camera_model)
+
 
 def main(args=None):
     rclpy.init(args=args)
-    image_projection = DetectionAggregationNode()
-    rclpy.spin(image_projection)
-    image_projection.destroy_node()
+    detection_aggregation_node = DetectionAggregationNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(detection_aggregation_node)
+    executor.spin()
+    detection_aggregation_node.destroy_node()
     rclpy.shutdown()
 
 

@@ -40,6 +40,8 @@ install(
   src/detection_aggregation_node.py
   src/object_detection_node.py
   src/waypoint_mission_node.py
+  src/pothole_tracker.py
+  src/utils.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
