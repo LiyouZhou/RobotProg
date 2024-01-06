@@ -38,7 +38,6 @@ def generate_launch_description():
         description="Skip initial localisation and start waypoint following.",
     )
 
-    print("skip_localisation_init", skip_localisation_init)
     start_waypoint_mission_node = Node(
         parameters=[
             {
