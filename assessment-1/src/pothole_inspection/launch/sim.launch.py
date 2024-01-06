@@ -24,7 +24,7 @@ from launch_ros.actions import Node
 import logging
 
 # Set the logging level to DEBUG or desired level
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.INFO)
 
 
 def generate_launch_description():
