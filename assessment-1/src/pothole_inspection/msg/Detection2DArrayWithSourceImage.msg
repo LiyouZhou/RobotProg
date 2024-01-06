@@ -1,0 +1,2 @@
+vision_msgs/Detection2DArray detection_array
+sensor_msgs/Image source_image

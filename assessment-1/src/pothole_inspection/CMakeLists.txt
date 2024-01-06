@@ -43,4 +43,16 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
+find_package(rosidl_default_generators REQUIRED)
+find_package(vision_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Detection2DArrayWithSourceImage.msg"
+  DEPENDENCIES
+  vision_msgs
+  sensor_msgs
+ )
+
 ament_package()

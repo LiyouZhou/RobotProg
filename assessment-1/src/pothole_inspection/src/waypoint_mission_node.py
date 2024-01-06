@@ -12,6 +12,7 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from sensor_msgs.msg import Imu
 from vision_msgs.msg import Detection2DArray
 from std_srvs.srv import Empty
+from std_msgs.msg import Int32
 
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 import numpy as np
@@ -69,9 +70,12 @@ class WaypointMissionNode(Node):
                 break
 
         self.navigator = BasicNavigator()
-        self.detection_counter = 0
-        self.detection_subscriber = self.create_subscription(
-            Detection2DArray, "/potholes/bbox", self.detection_subscriber_callback, 10
+        self.forward_pass_count = 0
+        self.forward_pass_count_sub = self.create_subscription(
+            Int32,
+            "/object_detection_node/forward_pass_count",
+            self.forward_pass_count_callback,
+            10,
         )
         self.pose_subscriber = self.create_subscription(
             Imu, "/imu", self.imu_callback, 10
@@ -89,8 +93,14 @@ class WaypointMissionNode(Node):
         )
 
         self.state = State.INIT_LOCALISATION
-        if self.get_parameter("skip_localisation_init").get_parameter_value().bool_value:
-            self.get_logger().info("Skipping initial localisation and starting waypoint following.")
+        if (
+            self.get_parameter("skip_localisation_init")
+            .get_parameter_value()
+            .bool_value
+        ):
+            self.get_logger().info(
+                "Skipping initial localisation and starting waypoint following."
+            )
             self.state = State.START_WAYPOINT_FOLLOWING
         self.timer = self.create_timer(1, self.state_machine)
 
@@ -119,8 +129,8 @@ class WaypointMissionNode(Node):
         else:
             self.pose_converged = False
 
-    def detection_subscriber_callback(self, msg):
-        self.detection_counter += 1
+    def forward_pass_count_callback(self, msg):
+        self.forward_pass_count = msg.data
 
     def state_machine(self):
         self.get_logger().info(f"current_state is {self.state}")
@@ -163,11 +173,13 @@ class WaypointMissionNode(Node):
         # Start to follow a list of waypoints
         elif self.state == State.START_WAYPOINT_FOLLOWING:
             # wait for detection stack to stablise and then start waypoint following
-            if self.detection_counter > 5:
+            if self.forward_pass_count > 5:
                 self.navigator.waitUntilNav2Active()
                 self.nav_start = self.navigator.get_clock().now()
                 self.navigator.followWaypoints(self.waypoints)
                 self.state = State.WAYPOINT_FOLLOWING
+            else:
+                self.get_logger().error("waiting for detection stack to stablise")
         # Continue to monitor the progress of waypoint following
         elif self.state == State.WAYPOINT_FOLLOWING:
             if not self.navigator.isTaskComplete():

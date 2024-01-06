@@ -7,7 +7,10 @@ from rclpy import qos
 
 # ROS Messages
 from sensor_msgs.msg import Image
-from vision_msgs.msg import Detection2D, Detection2DArray
+from vision_msgs.msg import Detection2D
+from pothole_inspection.msg import Detection2DArrayWithSourceImage
+from std_msgs.msg import Int32
+
 from cv_bridge import CvBridge
 
 import torch
@@ -44,8 +47,12 @@ class PotholeDetectionNode(Node):
         )
         self.model = None
         self.detections_pub = self.create_publisher(
-            Detection2DArray, "/potholes/bbox", 10
+            Detection2DArrayWithSourceImage, "/potholes/bbox", 10
         )
+        self.forward_pass_count_pub = self.create_publisher(
+            Int32, "/object_detection_node/forward_pass_count", 10
+        )
+        self.forward_pass_count = 0
         self.debug_image_pub = self.create_publisher(Image, "/potholes/debug_image", 10)
         self.bridge = CvBridge()
 
@@ -68,11 +75,18 @@ class PotholeDetectionNode(Node):
         x = transforms(img_tensor)
         pred = self.model([x.to("cuda")])[1][0]
 
+        self.forward_pass_count += 1
+        self.forward_pass_count_pub.publish(Int32(data=self.forward_pass_count))
+
         # print(pred, x.size())
         boxes = pred["boxes"]
         scores = pred["scores"]
 
-        detections = Detection2DArray()
+        # return early if no detections
+        if boxes.size(dim=0) == 0:
+            return
+
+        detections_w_image = Detection2DArrayWithSourceImage()
         for idx in range(boxes.size(dim=0)):
             score = scores[idx]
             if score > 0.9:
@@ -96,13 +110,16 @@ class PotholeDetectionNode(Node):
                 det.bbox.size_x = float(width)
                 det.bbox.size_y = float(height)
 
-                detections.detections.append(det)
-        detections.header.stamp = image.header.stamp
+                detections_w_image.detection_array.detections.append(det)
+        detections_w_image.detection_array.header.stamp = image.header.stamp
 
-        self.detections_pub.publish(detections)
+        if len(detections_w_image.detection_array.detections) > 0:
+            detections_w_image.source_image = image
+
+        self.detections_pub.publish(detections_w_image)
 
         image_color = self.bridge.imgmsg_to_cv2(image, "bgr8")
-        for det in detections.detections:
+        for det in detections_w_image.detection_array.detections:
             center_x = det.bbox.center.position.x
             center_y = det.bbox.center.position.y
             width = det.bbox.size_x
