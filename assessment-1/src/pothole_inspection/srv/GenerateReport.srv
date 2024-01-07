@@ -1,0 +1,3 @@
+string path
+---
+std_msgs/Empty empty

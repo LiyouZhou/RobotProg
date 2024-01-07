@@ -40,6 +40,7 @@ install(
   src/detection_aggregation_node.py
   src/object_detection_node.py
   src/waypoint_mission_node.py
+  src/report_generator_node.py
   src/pothole_tracker.py
   src/utils.py
   DESTINATION lib/${PROJECT_NAME}
@@ -52,6 +53,9 @@ find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Detection2DArrayWithSourceImage.msg"
+  "msg/Pothole.msg"
+  "srv/ReportAggregatedDetections.srv"
+  "srv/GenerateReport.srv"
   DEPENDENCIES
   vision_msgs
   sensor_msgs

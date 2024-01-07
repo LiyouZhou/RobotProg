@@ -17,6 +17,7 @@ from tf2_geometry_msgs import do_transform_pose
 from vision_msgs.msg import Detection2DArray
 from visualization_msgs.msg import Marker, MarkerArray
 from pothole_inspection.msg import Detection2DArrayWithSourceImage
+from pothole_inspection.srv import ReportAggregatedDetections
 
 import numpy as np
 import time
@@ -26,6 +27,8 @@ from pothole_tracker import PotholeTracker, Pothole
 from utils import project3dToPixel
 
 from rclpy.executors import MultiThreadedExecutor
+
+from cv_bridge import CvBridge
 
 
 class DetectionAggregationNode(Node):
@@ -80,8 +83,12 @@ class DetectionAggregationNode(Node):
         self.pothole_tracker = PotholeTracker()
         self.img_count = 0
 
-        self.pothole_image_timer = self.create_timer(10, self.produce_pothole_images)
-        self.pothole_image_timer_start_time = time.time()
+        # self.pothole_image_timer = self.create_timer(10, self.produce_pothole_images)
+        # self.pothole_image_timer_start_time = time.time()
+
+        self.srv = self.create_service(ReportAggregatedDetections, '/report_aggregated_detections', self.report_aggregated_detections_callback)
+
+        self.cv_bridge = CvBridge()
 
     def get_tf_transform(self, target_frame, source_frame, timestamp):
         try:
@@ -281,13 +288,16 @@ class DetectionAggregationNode(Node):
         self.object_location_marker_pub.publish(ma)
         self.object_location_pub.publish(self.pose_stamped_array)
 
-    def produce_pothole_images(self):
-        time_elapsed = int(time.time() - self.pothole_image_timer_start_time)
-        for pth in self.pothole_tracker.get_tracked_potholes():
-            self.get_logger().info(f"pothole {pth.x} {pth.y} {pth.z} {pth.radius}")
-            pth.image_folder = f"/volume/compose_dir/debug_images/{time_elapsed}/"
-            os.makedirs(pth.image_folder, exist_ok=True)
-            pth.get_pothole_image(self.camera_model)
+    def report_aggregated_detections_callback(self, request, response):
+        for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
+            self.get_logger().info(f"convertig pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}")
+            response.potholes.append(pth.to_msg(self.camera_model, self.cv_bridge))
+
+        self.get_logger().info(f"returning pothole count {len(response.potholes)}")
+        return response
+            # pth.image_folder = f"/volume/compose_dir/debug_images/{time_elapsed}/"
+            # os.makedirs(pth.image_folder, exist_ok=True)
+            # pth.get_pothole_image(self.camera_model)
 
 
 def main(args=None):

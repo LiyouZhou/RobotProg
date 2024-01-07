@@ -6,6 +6,9 @@ import itertools
 import multiprocessing
 import cv2
 from utils import sample_pixel
+from cv_bridge import CvBridge
+
+from pothole_inspection.msg import Pothole as PotholeMsg
 
 
 class Pothole:
@@ -17,7 +20,6 @@ class Pothole:
         self.image = image
         self.tf = tf
         self.center = np.array((x, y, z))
-        self.process_pool = None
 
         self.image_folder = "/volume/compose_dir/debug_images/"
 
@@ -54,8 +56,6 @@ class Pothole:
         )
 
     def get_pothole_image(self, camera_model):
-        if self.process_pool is None:
-            self.process_pool = multiprocessing.Pool(8)
 
         if camera_model is None or self.image is None or self.tf is None:
             return
@@ -88,18 +88,32 @@ class Pothole:
             for case in all_pixel_cases
         ]
 
-        all_pixel_values = self.process_pool.starmap(sample_pixel, all_pixel_cases)
+        all_pixel_values = []
+        with multiprocessing.Pool(8) as process_pool:
+            all_pixel_values = process_pool.starmap(sample_pixel, all_pixel_cases)
 
         image_data = np.zeros([len(x_values), len(y_values), 3])
         for color, case in zip(all_pixel_values, all_pixel_cases):
             image_data[case[0], case[1]] = color
 
-        fn = str(time.time()).replace(".", "_")
-        print(f"Writing image {self.image_folder}/{fn}.png")
-        cv2.imwrite(
-            f"{self.image_folder}/{fn}.png",
-            np.array(image_data),
-        )
+        # fn = str(time.time()).replace(".", "_")
+        # print(f"Writing image {self.image_folder}/{fn}.png")
+        # cv2.imwrite(
+        #     f"{self.image_folder}/{fn}.png",
+        #     np.array(image_data),
+        # )
+
+        return np.array(image_data)
+
+    def to_msg(self, camera_model, cv_bridge):
+        msg = PotholeMsg()
+        msg.x = self.x
+        msg.y = self.y
+        msg.z = self.z
+        msg.radius = self.radius
+        msg.image = cv_bridge.cv2_to_imgmsg(self.get_pothole_image(camera_model), encoding="passthrough")
+        return msg
+
 
 
 class PotholeTracker:

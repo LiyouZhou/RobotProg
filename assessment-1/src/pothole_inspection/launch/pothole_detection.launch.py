@@ -55,11 +55,19 @@ def generate_launch_description():
         output="screen",
     )
 
+    start_report_generator_node = Node(
+        package="pothole_inspection",
+        executable="report_generator_node.py",
+        name="report_generator_node",
+        output="screen",
+    )
+
     ld = LaunchDescription()
 
     ld.add_action(declare_skip_localisation_init)
     ld.add_action(start_object_detection_node)
     ld.add_action(start_detection_aggregation_node)
     ld.add_action(start_waypoint_mission_node)
+    ld.add_action(start_report_generator_node)
 
     return ld
