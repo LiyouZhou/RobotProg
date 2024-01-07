@@ -136,22 +136,17 @@ class DetectionAggregationNode(Node):
         )
 
         # get the depth reading at the centroid location
-        depth_value = self.image_depth[
-            int(depth_coords[1]), int(depth_coords[0])
-        ]  # you might need to do some boundary checking first!
+        depth_value = image_depth[int(depth_coords[1]), int(depth_coords[0])]
 
-        # calculate object's 3d location in camera coords
+        # project the image coords (x,y) into 3D ray in camera coords
         rectified_point = self.camera_model.rectifyPoint((x, y))
-        camera_coords = self.camera_model.projectPixelTo3dRay(
-            rectified_point
-        )  # project the image coords (x,y) into 3D ray in camera coords
+        camera_coords = self.camera_model.projectPixelTo3dRay(rectified_point)
 
-        # make a unit vector along the ray
-        camera_coords = [x / np.linalg.norm(camera_coords) for x in camera_coords]
+        # make a vector along the ray where z is 1
+        camera_coords = [x / camera_coords[2] for x in camera_coords]
 
-        camera_coords = [
-            x * depth_value for x in camera_coords
-        ]  # multiply the vector by depth
+        # multiply the vector by depth
+        camera_coords = [x * depth_value for x in camera_coords]
 
         # define a point in camera coordinates
         object_location = PoseStamped()
