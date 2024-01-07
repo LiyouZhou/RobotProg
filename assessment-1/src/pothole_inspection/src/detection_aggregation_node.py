@@ -23,6 +23,7 @@ import numpy as np
 import time
 import os
 from collections import deque
+from threading import Lock
 
 from pothole_tracker import PotholeTracker, Pothole
 from utils import project3dToPixel, timestamp_to_float, distance
@@ -98,6 +99,7 @@ class DetectionAggregationNode(Node):
         )
 
         self.cv_bridge = CvBridge()
+        self.potholes_mutex = Lock()
 
     def get_tf_transform(self, target_frame, source_frame, timestamp):
         try:
@@ -272,7 +274,8 @@ class DetectionAggregationNode(Node):
                 pothole_detections.append(pothole)
 
         # update the pothole tracker with new detection, this will merge overlapping detections
-        self.pothole_tracker.update(pothole_detections)
+        with self.potholes_mutex:
+            self.pothole_tracker.update(pothole_detections)
 
         # create some visualisations
         ma = MarkerArray()
@@ -315,11 +318,12 @@ class DetectionAggregationNode(Node):
         self.object_location_pub.publish(pose_stamped_array)
 
     def report_aggregated_detections_callback(self, request, response):
-        for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
-            self.get_logger().info(
-                f"converting pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}"
-            )
-            response.potholes.append(pth.to_msg(self.camera_model, self.cv_bridge))
+        with self.potholes_mutex:
+            for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
+                self.get_logger().info(
+                    f"converting pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}"
+                )
+                response.potholes.append(pth.to_msg(self.camera_model, self.cv_bridge))
 
         self.get_logger().info(f"returning pothole count {len(response.potholes)}")
         return response
