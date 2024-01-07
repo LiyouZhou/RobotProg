@@ -27,6 +27,7 @@ from pothole_tracker import PotholeTracker, Pothole
 from utils import project3dToPixel
 
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 from cv_bridge import CvBridge
 
@@ -45,11 +46,13 @@ class DetectionAggregationNode(Node):
         super().__init__("detection_aggregation_node", parameter_overrides=[])
         self.bridge = CvBridge()
 
+        self.camera_info_cbg = MutuallyExclusiveCallbackGroup()
         self.camera_info_sub = self.create_subscription(
             CameraInfo,
             "/limo/depth_camera_link/camera_info",
             self.camera_info_callback,
             qos_profile=qos.qos_profile_sensor_data,
+            callback_group=self.camera_info_cbg,
         )
 
         self.object_location_pub = self.create_publisher(
@@ -70,11 +73,13 @@ class DetectionAggregationNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        self.depth_image_cbg = MutuallyExclusiveCallbackGroup()
         self.depth_image_sub = self.create_subscription(
             Image,
             "/limo/depth_camera_link/depth/image_raw",
             self.image_depth_callback,
             qos_profile=qos.qos_profile_sensor_data,
+            callback_group=self.depth_image_cbg,
         )
 
         self.color_image_shape = [640, 480]
@@ -86,7 +91,13 @@ class DetectionAggregationNode(Node):
         # self.pothole_image_timer = self.create_timer(10, self.produce_pothole_images)
         # self.pothole_image_timer_start_time = time.time()
 
-        self.srv = self.create_service(ReportAggregatedDetections, '/report_aggregated_detections', self.report_aggregated_detections_callback)
+        self.report_cbg = MutuallyExclusiveCallbackGroup()
+        self.report_srv = self.create_service(
+            ReportAggregatedDetections,
+            "/report_aggregated_detections",
+            self.report_aggregated_detections_callback,
+            callback_group=self.report_cbg,
+        )
 
         self.cv_bridge = CvBridge()
 
