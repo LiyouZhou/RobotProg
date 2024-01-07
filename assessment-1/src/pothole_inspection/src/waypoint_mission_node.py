@@ -13,6 +13,7 @@ from sensor_msgs.msg import Imu
 from vision_msgs.msg import Detection2DArray
 from std_srvs.srv import Empty
 from std_msgs.msg import Int32
+from pothole_inspection.srv import GenerateReport
 
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 import numpy as np
@@ -103,6 +104,8 @@ class WaypointMissionNode(Node):
             )
             self.state = State.START_WAYPOINT_FOLLOWING
         self.timer = self.create_timer(1, self.state_machine)
+
+        self.cli = self.create_client(GenerateReport, "/generate_report")
 
     def imu_callback(self, msg: Imu):
         """
@@ -195,13 +198,18 @@ class WaypointMissionNode(Node):
         elif self.state == State.FNISHED:
             result = self.navigator.getResult()
             if result == TaskResult.SUCCEEDED:
-                print("Goal succeeded!")
+                self.get_logger().info("Goal succeeded!")
             elif result == TaskResult.CANCELED:
-                print("Goal was canceled!")
+                self.get_logger().info("Goal was canceled!")
             elif result == TaskResult.FAILED:
-                print("Goal failed!")
+                self.get_logger().info("Goal failed!")
             else:
-                print("Goal has an invalid return status!")
+                self.get_logger().info("Goal has an invalid return status!")
+
+            req = GenerateReport.Request()
+            req.path = "/tmp/inspection_report"
+            self.cli.call_async(req)
+            self.timer.cancel()
 
 
 def main(args=None):
