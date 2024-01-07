@@ -290,7 +290,7 @@ class DetectionAggregationNode(Node):
 
     def report_aggregated_detections_callback(self, request, response):
         for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
-            self.get_logger().info(f"convertig pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}")
+            self.get_logger().info(f"converting pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}")
             response.potholes.append(pth.to_msg(self.camera_model, self.cv_bridge))
 
         self.get_logger().info(f"returning pothole count {len(response.potholes)}")
