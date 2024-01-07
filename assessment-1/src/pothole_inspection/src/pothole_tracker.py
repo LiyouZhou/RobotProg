@@ -9,6 +9,7 @@ from utils import sample_pixel
 from cv_bridge import CvBridge
 
 from pothole_inspection.msg import Pothole as PotholeMsg
+from visualization_msgs.msg import Marker, MarkerArray
 
 
 class Pothole:
@@ -33,7 +34,7 @@ class Pothole:
 
         if np.linalg.norm(p2 - self.center) < self.radius:
             # new_pothole is entirely inside current pothole
-            # no merge ncessary
+            # no merge necessary
             return
 
         det3_radius = 0
@@ -56,7 +57,6 @@ class Pothole:
         )
 
     def get_pothole_image(self, camera_model):
-
         if camera_model is None or self.image is None or self.tf is None:
             return
 
@@ -96,13 +96,6 @@ class Pothole:
         for color, case in zip(all_pixel_values, all_pixel_cases):
             image_data[case[0], case[1]] = color
 
-        # fn = str(time.time()).replace(".", "_")
-        # print(f"Writing image {self.image_folder}/{fn}.png")
-        # cv2.imwrite(
-        #     f"{self.image_folder}/{fn}.png",
-        #     np.array(image_data),
-        # )
-
         return np.array(image_data)
 
     def to_msg(self, camera_model, cv_bridge):
@@ -111,9 +104,32 @@ class Pothole:
         msg.y = self.y
         msg.z = self.z
         msg.radius = self.radius
-        msg.image = cv_bridge.cv2_to_imgmsg(self.get_pothole_image(camera_model), encoding="passthrough")
+        msg.image = cv_bridge.cv2_to_imgmsg(
+            self.get_pothole_image(camera_model), encoding="passthrough"
+        )
         return msg
 
+    def to_marker(self, id, stamp):
+        m = Marker()
+        m.header.frame_id = "odom"
+        m.header.stamp = stamp
+        m.ns = "pothole"
+        m.id = id
+        m.type = Marker.CYLINDER
+        m.pose.position.x = self.x
+        m.pose.position.y = self.y
+        m.pose.position.z = self.z
+        m.scale.x = m.scale.y = self.radius * 2
+        m.scale.z = 0.03
+
+        m.action = Marker.ADD
+
+        m.color.r = 0.0
+        m.color.g = 1.0
+        m.color.b = 0.0
+        m.color.a = 1.0
+
+        return m
 
 
 class PotholeTracker:

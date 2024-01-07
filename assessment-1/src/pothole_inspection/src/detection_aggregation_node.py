@@ -86,12 +86,8 @@ class DetectionAggregationNode(Node):
 
         self.color_image_shape = [640, 480]
 
-        self.pose_stamped_array = PoseArray()
         self.pothole_tracker = PotholeTracker()
         self.img_count = 0
-
-        # self.pothole_image_timer = self.create_timer(10, self.produce_pothole_images)
-        # self.pothole_image_timer_start_time = time.time()
 
         self.report_cbg = MutuallyExclusiveCallbackGroup()
         self.report_srv = self.create_service(
@@ -209,6 +205,7 @@ class DetectionAggregationNode(Node):
         if len(msg.detection_array.detections) == 0:
             return
 
+        # find the depth image matching exactly the timestamp of the detection
         image_depth_ros = self.get_depth_image_by_timestamp(
             msg.detection_array.header.stamp
         )
@@ -219,6 +216,7 @@ class DetectionAggregationNode(Node):
 
         pothole_detections = []
         for detection in msg.detection_array.detections:
+            # calculate the camera coordinates of the center, top, bottom,  left and right of the bounding box
             object_location = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x,
                 detection.bbox.center.position.y,
@@ -247,6 +245,7 @@ class DetectionAggregationNode(Node):
 
             pothole_radius = max(distance(top, bottom), distance(left, right)) / 2
 
+            # transform the object location from the camera frame to the odom frame
             transform = self.get_tf_transform(
                 "odom",
                 object_location.header.frame_id,
@@ -259,10 +258,7 @@ class DetectionAggregationNode(Node):
                 object_location.header.frame_id = "odom"
                 object_location.pose = p_camera
 
-                self.pose_stamped_array.header.frame_id = (
-                    object_location.header.frame_id
-                )
-                self.pose_stamped_array.poses.append(object_location.pose)
+                # create a pothole object
                 pothole = Pothole(
                     object_location.pose.position.x,
                     object_location.pose.position.y,
@@ -273,42 +269,29 @@ class DetectionAggregationNode(Node):
                         "depth_link", "odom", msg.detection_array.header.stamp
                     ),
                 )
-
                 pothole_detections.append(pothole)
 
+        # update the pothole tracker with new detection, this will merge overlapping detections
         self.pothole_tracker.update(pothole_detections)
 
+        # create some visualisations
         ma = MarkerArray()
-        self.pose_stamped_array.poses = []
+        pose_stamped_array = PoseArray()
+        pose_stamped_array.poses = []
         for idx, pothole in enumerate(self.pothole_tracker.get_tracked_potholes()):
-            m = Marker()
-            m.header.frame_id = "odom"
-            m.header.stamp = msg.detection_array.header.stamp
-            m.ns = "pothole"
-            m.id = idx + 1
-            m.type = Marker.CYLINDER
-            m.pose.position.x = pothole.x
-            m.pose.position.y = pothole.y
-            m.pose.position.z = pothole.z
-            m.scale.x = m.scale.y = pothole.radius * 2
-            m.scale.z = 0.03
-
-            m.action = Marker.ADD
-
-            m.color.r = 0.0
-            m.color.g = 1.0
-            m.color.b = 0.0
-            m.color.a = 1.0
-
+            # create a cylindrical marker for each pothole visualisation
+            m = pothole.to_marker(idx + 1, msg.detection_array.header.stamp)
             ma.markers.append(m)
 
+            # create a pose for each pothole for visualisation
             object_location = PoseStamped()
             object_location.header.frame_id = m.header.frame_id
             object_location.pose = m.pose
 
-            self.pose_stamped_array.header.frame_id = object_location.header.frame_id
-            self.pose_stamped_array.poses.append(object_location.pose)
+            pose_stamped_array.header.frame_id = object_location.header.frame_id
+            pose_stamped_array.poses.append(object_location.pose)
 
+        # create a text marker for the number of potholes detected
         m = Marker()
         m.header.frame_id = "odom"
         m.ns = "pothole_count"
@@ -326,11 +309,10 @@ class DetectionAggregationNode(Node):
         s = f"Potholes Detected {len(ma.markers)}"
         m.text = s
         self.get_logger().info(s)
-
         ma.markers.append(m)
 
         self.object_location_marker_pub.publish(ma)
-        self.object_location_pub.publish(self.pose_stamped_array)
+        self.object_location_pub.publish(pose_stamped_array)
 
     def report_aggregated_detections_callback(self, request, response):
         for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
