@@ -296,14 +296,13 @@ class DetectionAggregationNode(Node):
 
     def report_aggregated_detections_callback(self, request, response):
         for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
-            self.get_logger().info(f"converting pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}")
+            self.get_logger().info(
+                f"converting pothole {idx} {pth.x} {pth.y} {pth.z} {pth.radius}"
+            )
             response.potholes.append(pth.to_msg(self.camera_model, self.cv_bridge))
 
         self.get_logger().info(f"returning pothole count {len(response.potholes)}")
         return response
-            # pth.image_folder = f"/volume/compose_dir/debug_images/{time_elapsed}/"
-            # os.makedirs(pth.image_folder, exist_ok=True)
-            # pth.get_pothole_image(self.camera_model)
 
 
 def main(args=None):
