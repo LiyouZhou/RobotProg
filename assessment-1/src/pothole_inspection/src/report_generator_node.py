@@ -70,7 +70,7 @@ class ReportGeneratorNode(Node):
 
         report = f"# Pothole Inspection Report\n\n{date_time}\n\n"
         report += "## Pothole Map\n\n"
-        report += f"![]({pothole_map_path})\n\n"
+        report += f"![](pothole_map.png)\n\n"
         report += "## Potholes\n\n"
         report += "| ID | x | y | z | radius | image |\n"
         report += "| --- | --- | --- | --- | --- | --- |\n"
