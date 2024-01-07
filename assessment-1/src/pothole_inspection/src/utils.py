@@ -44,3 +44,16 @@ def sample_pixel(i, j, x, y, z, tf, camera_model, image):
         pixel_color = cv2.getRectSubPix(image, (1, 1), pixel_coords)
         pixel_color = pixel_color[0][0]
     return pixel_color
+
+def timestamp_to_float(timestamp):
+    return timestamp.sec + timestamp.nanosec * 1e-9
+
+def distance(p1: PoseStamped, p2: PoseStamped):
+    """
+    Calculate the distance between 2 PoseStamped points in the x-y plane
+    """
+    # assume they are at the same z-level
+    v1 = np.array([p1.pose.position.x, p1.pose.position.y])
+    v2 = np.array([p2.pose.position.x, p2.pose.position.y])
+
+    return np.linalg.norm(v1 - v2)

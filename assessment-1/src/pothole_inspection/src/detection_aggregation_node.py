@@ -22,9 +22,10 @@ from pothole_inspection.srv import ReportAggregatedDetections
 import numpy as np
 import time
 import os
+from collections import deque
 
 from pothole_tracker import PotholeTracker, Pothole
-from utils import project3dToPixel
+from utils import project3dToPixel, timestamp_to_float, distance
 
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -81,6 +82,7 @@ class DetectionAggregationNode(Node):
             qos_profile=qos.qos_profile_sensor_data,
             callback_group=self.depth_image_cbg,
         )
+        self.depth_image_buffer = deque(maxlen=12)
 
         self.color_image_shape = [640, 480]
 
@@ -117,9 +119,9 @@ class DetectionAggregationNode(Node):
         self.camera_model.fromCameraInfo(data)
 
     def image_depth_callback(self, data):
-        self.image_depth_ros = data
+        self.depth_image_buffer.append(data)
 
-    def image_coords_to_camera_coords(self, x, y):
+    def image_coords_to_camera_coords(self, x, y, image_depth):
         # make sure x, y does not go out of bounds
         x = max([x, 0])
         x = min([x, self.color_image_shape[0] - 1])
@@ -127,7 +129,7 @@ class DetectionAggregationNode(Node):
         y = min([y, self.color_image_shape[1] - 1])
 
         # "map" from color to depth image
-        depth_height, depth_width = self.image_depth.shape[:2]
+        depth_height, depth_width = image_depth.shape[:2]
         depth_coords = (
             depth_width / 2
             + (x - self.color_image_shape[0] / 2) * self.color2depth_aspect,
@@ -158,56 +160,92 @@ class DetectionAggregationNode(Node):
 
         return object_location
 
-    def distance(self, p1: PoseStamped, p2: PoseStamped):
+    def get_depth_image_by_timestamp(self, timestamp):
         """
-        Calculate the distance between 2 PoseStamped points in the x-y plane
+        Get the depth image closest to the given timestamp
         """
-        # assume they are at the same z-level
-        v1 = np.array([p1.pose.position.x, p1.pose.position.y])
-        v2 = np.array([p2.pose.position.x, p2.pose.position.y])
+        if len(self.depth_image_buffer) == 0:
+            self.get_logger().warning(f"No depth images in the buffer")
+            return None
 
-        return np.linalg.norm(v1 - v2)
+        if all(
+            timestamp_to_float(timestamp) < timestamp_to_float(image.header.stamp)
+            for image in self.depth_image_buffer
+        ):
+            self.get_logger().warning(
+                f"Requested depth image with timestamp {timestamp} not in the buffer"
+            )
+            return None
+
+        while all(
+            timestamp_to_float(timestamp) > timestamp_to_float(image.header.stamp)
+            for image in self.depth_image_buffer
+        ):
+            self.get_logger().warning(
+                f"Requested depth image with timestamp {timestamp} in the future, waiting for it to arrive..."
+            )
+            time.sleep(1)
+
+        for image in self.depth_image_buffer:
+            if (
+                np.abs(
+                    timestamp_to_float(timestamp)
+                    - timestamp_to_float(image.header.stamp)
+                )
+                < 1e-3
+            ):
+                return image
+
+        self.get_logger().error(
+            "Did not find a depth image with the requested timestamp {timestamp}"
+        )
+        return None
 
     def pothole_bbox_callback(self, msg: Detection2DArrayWithSourceImage):
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
             return
 
-        if self.image_depth_ros is None:
-            return
-
-        self.image_depth = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
-
         if len(msg.detection_array.detections) == 0:
             return
 
+        image_depth_ros = self.get_depth_image_by_timestamp(
+            msg.detection_array.header.stamp
+        )
+        if image_depth_ros is None:
+            return
+        image_depth = self.bridge.imgmsg_to_cv2(image_depth_ros, "32FC1")
         source_img = self.bridge.imgmsg_to_cv2(msg.source_image)
 
         pothole_detections = []
         for detection in msg.detection_array.detections:
             object_location = self.image_coords_to_camera_coords(
-                detection.bbox.center.position.x, detection.bbox.center.position.y
+                detection.bbox.center.position.x,
+                detection.bbox.center.position.y,
+                image_depth,
             )
             top = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x + detection.bbox.size_x / 2,
                 detection.bbox.center.position.y,
+                image_depth,
             )
             bottom = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x - +detection.bbox.size_x / 2,
                 detection.bbox.center.position.y,
+                image_depth,
             )
             left = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x,
                 detection.bbox.center.position.y - detection.bbox.size_y / 2,
+                image_depth,
             )
             right = self.image_coords_to_camera_coords(
                 detection.bbox.center.position.x,
                 detection.bbox.center.position.y + detection.bbox.size_y / 2,
+                image_depth,
             )
 
-            pothole_radius = (
-                max(self.distance(top, bottom), self.distance(left, right)) / 2
-            )
+            pothole_radius = max(distance(top, bottom), distance(left, right)) / 2
 
             transform = self.get_tf_transform(
                 "odom",
