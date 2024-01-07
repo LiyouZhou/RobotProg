@@ -89,7 +89,7 @@ class Pothole:
         ]
 
         all_pixel_values = []
-        with multiprocessing.Pool(8) as process_pool:
+        with multiprocessing.Pool(3) as process_pool:
             all_pixel_values = process_pool.starmap(sample_pixel, all_pixel_cases)
 
         image_data = np.zeros([len(x_values), len(y_values), 3])
