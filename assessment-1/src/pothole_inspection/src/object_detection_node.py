@@ -146,6 +146,8 @@ def main(args=None):
     rclpy.init(args=args)
     pd_node = PotholeDetectionNode()
     rclpy.spin(pd_node)
+    pd_node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == "__main__":
