@@ -25,6 +25,10 @@ class Pothole:
         self.image_folder = "/volume/compose_dir/debug_images/"
 
     def merge(self, new_pothole):
+        """
+        Merges the current pothole with a new pothole such that
+        the resulting pothole perfectly contains both potholes.
+        """
         c1_c2_vec = new_pothole.center - self.center
         c1_c2_distance = np.linalg.norm(c1_c2_vec)
         c1_c2_unit_vec = c1_c2_vec / c1_c2_distance
@@ -57,6 +61,9 @@ class Pothole:
         )
 
     def get_pothole_image(self, camera_model):
+        """
+        Returns a cropped image of the pothole in the bird's eye view.
+        """
         if camera_model is None or self.image is None or self.tf is None:
             return
 
@@ -65,6 +72,7 @@ class Pothole:
         p.position.y = self.y
         p.position.z = self.z
 
+        # define a matrix of pixel coordinates that covers the pothole
         image_data = []
         pixel_step = self.radius / 64
         x_values = list(
@@ -88,10 +96,12 @@ class Pothole:
             for case in all_pixel_cases
         ]
 
+        # Project each 3d pixel point into the image coordinates to sample the color
         all_pixel_values = []
         with multiprocessing.Pool(3) as process_pool:
             all_pixel_values = process_pool.starmap(sample_pixel, all_pixel_cases)
 
+        # combine the pixel color values into an image
         image_data = np.zeros([len(x_values), len(y_values), 3])
         for color, case in zip(all_pixel_values, all_pixel_cases):
             image_data[case[0], case[1]] = color
@@ -99,6 +109,9 @@ class Pothole:
         return np.array(image_data)
 
     def to_msg(self, camera_model, cv_bridge):
+        """
+        Converts the pothole into a message that can be published.
+        """
         msg = PotholeMsg()
         msg.x = self.x
         msg.y = self.y
@@ -110,6 +123,9 @@ class Pothole:
         return msg
 
     def to_marker(self, id, stamp):
+        """
+        Converts the pothole into a marker message that can be visualised.
+        """
         m = Marker()
         m.header.frame_id = "odom"
         m.header.stamp = stamp
@@ -133,10 +149,16 @@ class Pothole:
 
 
 class PotholeTracker:
+    """
+    Maintain a list of detected potholes
+    """
     def __init__(self):
         self.tracked_potholes: list[Pothole] = []
 
     def update(self, new_detections: list[Pothole]):
+        """
+        Update the list of tracked potholes with a list of new detections.
+        """
         new_detections_queue = deque(new_detections)
 
         # loop through the list of new detections
@@ -167,6 +189,9 @@ class PotholeTracker:
         return
 
     def add(self, det):
+        """
+        Add a new pothole to the list of tracked potholes.
+        """
         self.tracked_potholes.append(det)
         return
 

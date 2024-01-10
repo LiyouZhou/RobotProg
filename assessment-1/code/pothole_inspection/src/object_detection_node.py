@@ -57,6 +57,11 @@ class PotholeDetectionNode(Node):
         self.bridge = CvBridge()
 
     def image_color_callback(self, image):
+        """
+        Callback for the color image. Runs the detection model 
+        and publishes the detections as bounding boxes.
+        """
+        # load model from file
         if self.model is None:
             model_path = (
                 self.get_parameter("detection_model_path")
@@ -66,19 +71,23 @@ class PotholeDetectionNode(Node):
             self.model = torch.jit.load(model_path)
             self.model.eval()
 
+        # convert image data to tensor and upload to GPU
         img_tensor = torch.tensor(np.frombuffer(image.data, dtype=np.uint8)).to("cuda")
         img_tensor = img_tensor.reshape([image.height, image.width, 3]).permute(
             [2, 0, 1]
         )
-
+        
+        # transform the image into a format suitable for the model
         transforms = get_transform(False)
         x = transforms(img_tensor)
+
+        # run the model
         pred = self.model([x.to("cuda")])[1][0]
 
+        # publish the number of forward passes, the first few passes are slow
         self.forward_pass_count += 1
         self.forward_pass_count_pub.publish(Int32(data=self.forward_pass_count))
 
-        # print(pred, x.size())
         boxes = pred["boxes"]
         scores = pred["scores"]
 
@@ -86,6 +95,7 @@ class PotholeDetectionNode(Node):
         if boxes.size(dim=0) == 0:
             return
 
+        # convert the detections into a message
         detections_w_image = Detection2DArrayWithSourceImage()
         for idx in range(boxes.size(dim=0)):
             score = scores[idx]
@@ -113,11 +123,13 @@ class PotholeDetectionNode(Node):
                 detections_w_image.detection_array.detections.append(det)
         detections_w_image.detection_array.header.stamp = image.header.stamp
 
+        # publish the source image together with the message
         if len(detections_w_image.detection_array.detections) > 0:
             detections_w_image.source_image = image
 
         self.detections_pub.publish(detections_w_image)
 
+        # draw the detections on a debug image and publish it for visualisation
         image_color = self.bridge.imgmsg_to_cv2(image, "bgr8")
         for det in detections_w_image.detection_array.detections:
             center_x = det.bbox.center.position.x

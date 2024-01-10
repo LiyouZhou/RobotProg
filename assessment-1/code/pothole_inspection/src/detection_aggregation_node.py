@@ -102,6 +102,9 @@ class DetectionAggregationNode(Node):
         self.potholes_mutex = Lock()
 
     def get_tf_transform(self, target_frame, source_frame, timestamp):
+        """
+        Get the transform from source_frame to target_frame at the given timestamp
+        """
         try:
             transform = self.tf_buffer.lookup_transform(
                 target_frame, source_frame, timestamp
@@ -112,14 +115,23 @@ class DetectionAggregationNode(Node):
             return None
 
     def camera_info_callback(self, data):
+        """
+        Callback for the camera info message, used to save the camera model
+        """
         if not self.camera_model:
             self.camera_model = image_geometry.PinholeCameraModel()
         self.camera_model.fromCameraInfo(data)
 
     def image_depth_callback(self, data):
+        """
+        Callback for the depth image message, stores the depth image in a ring buffer
+        """
         self.depth_image_buffer.append(data)
 
-    def image_coords_to_camera_coords(self, x, y, image_depth):
+    def image_coords_to_camera_coords(self, x, y, image_depth) -> PoseStamped:
+        """
+        Convert image coordinates to camera coordinates
+        """
         # make sure x, y does not go out of bounds
         x = max([x, 0])
         x = min([x, self.color_image_shape[0] - 1])
@@ -200,6 +212,12 @@ class DetectionAggregationNode(Node):
         return None
 
     def pothole_bbox_callback(self, msg: Detection2DArrayWithSourceImage):
+        """
+        Callback for the detection message,
+        calculates the 3D location of the pothole and
+        adds it to the pothole tracker. Publishes a
+        list of pothole locations for visualisation.
+        """
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
             return
@@ -318,6 +336,10 @@ class DetectionAggregationNode(Node):
         self.object_location_pub.publish(pose_stamped_array)
 
     def report_aggregated_detections_callback(self, request, response):
+        """
+        Service callback for reporting the aggregated detections
+        Converts the pothole tracker objects to ROS message
+        """
         with self.potholes_mutex:
             for idx, pth in enumerate(self.pothole_tracker.get_tracked_potholes()):
                 self.get_logger().info(

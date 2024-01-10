@@ -31,6 +31,10 @@ class State(Enum):
 
 
 class WaypointMissionNode(Node):
+    """
+    Interface with Nav2 for localisation and waypoint following
+    via a state machine.
+    """
     def __init__(self):
         super().__init__("waypoint_mission_node")
         self.declare_parameter(
@@ -43,6 +47,7 @@ class WaypointMissionNode(Node):
         )
         self.waypoints = []
 
+        # load pre-recorded waypoints from rosbag file
         with open(
             self.get_parameter("waypoint_file_path").get_parameter_value().string_value,
             "rb",
@@ -133,6 +138,9 @@ class WaypointMissionNode(Node):
             self.pose_converged = False
 
     def forward_pass_count_callback(self, msg):
+        """
+        Used to determine when the detection stack has stablised
+        """
         self.forward_pass_count = msg.data
 
     def state_machine(self):

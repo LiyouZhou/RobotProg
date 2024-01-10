@@ -7,6 +7,9 @@ import cv2
 
 
 def project3dToPixel(camera_model, point):
+    """
+    Projects a 3D point to pixel coordinates using the camera model
+    """
     projection_matrix = camera_model.projectionMatrix()
 
     # make sure the translation component is zero
@@ -28,6 +31,10 @@ def project3dToPixel(camera_model, point):
 
 
 def sample_pixel(i, j, x, y, z, tf, camera_model, image):
+    """
+    samples the pixel color in pixel coordinates given
+    a 3d point in camera coordinate
+    """
     p = PoseStamped()
     p.pose.position.x = x
     p.pose.position.y = y
@@ -46,6 +53,9 @@ def sample_pixel(i, j, x, y, z, tf, camera_model, image):
     return pixel_color
 
 def timestamp_to_float(timestamp):
+    """
+    Convert a ROS timestamp to a float
+    """
     return timestamp.sec + timestamp.nanosec * 1e-9
 
 def distance(p1: PoseStamped, p2: PoseStamped):

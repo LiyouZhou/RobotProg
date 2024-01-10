@@ -41,6 +41,9 @@ class ReportGeneratorNode(Node):
         self.bridge = CvBridge()
 
     def generate_report_callback(self, request, response):
+        """
+        Generates a report of the detected pothole.
+        """
         self.get_logger().info("Generating report...")
         req = ReportAggregatedDetections.Request()
 
@@ -53,6 +56,7 @@ class ReportGeneratorNode(Node):
         now = datetime.now()  # current date and time
         date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
 
+        # Plot pothole locations on a map
         fig = plt.figure()
         maps_folder = os.path.join(
             get_package_share_directory("pothole_inspection"),
@@ -68,9 +72,12 @@ class ReportGeneratorNode(Node):
         plt.imshow(play_area, cmap="gray")
         pothole_map_path = f"{report_path}/pothole_map.png"
 
+        # Generate a markdown report
         report = f"# Pothole Inspection Report\n\n{date_time}\n\n"
         report += "## Pothole Map\n\n"
         report += f"![](pothole_map.png)\n\n"
+
+        # Generate a markdown table of pothole detections
         report += "## Potholes\n\n"
         report += "| ID | x | y | z | radius | image |\n"
         report += "| --- | --- | --- | --- | --- | --- |\n"
@@ -94,6 +101,7 @@ class ReportGeneratorNode(Node):
         plt.gca().invert_xaxis()
         plt.tight_layout()
         plt.savefig(pothole_map_path)
+
         report_path = os.path.abspath(f"{report_path}/report.md")
         self.get_logger().info(f"Writing report to {report_path}")
         with open(report_path, "w") as f:
