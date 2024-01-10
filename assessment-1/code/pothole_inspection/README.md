@@ -13,6 +13,8 @@ The Autonomous Pothole Inspector (API) is a ROS2 stack that performs navigation 
 
 # Getting Started
 
+A video of the stack running can be found [here](https://www.youtube.com/watch?v=TCik2BKGUC4).
+
 ## Install Dependencies
 
 ```sh
@@ -32,7 +34,7 @@ To build the stack, run the following:
 To launch the full stack in simulation:
 
 ```sh
-ros2 launch pothole_inspection sim.launch.py skip_localisation_init:=true
+> ros2 launch pothole_inspection sim.launch.py skip_localisation_init:=true
 ```
 
 This will launch the inspection stack, Gazebo simulator and RViz. 
