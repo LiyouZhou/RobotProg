@@ -1,0 +1,163 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage[table]{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{numprint}
+\usepackage[flushleft]{threeparttable}
+\graphicspath{{figures/}{../code/pothole_inspection/docs}{../code/pothole_inspection/example_inspection_report}}
+
+\begin{document}
+
+\title{PotPatrol: An Open Source Autonomous Road Pothole Inspection Robot using ROS2}
+
+\author{\IEEEauthorblockN{Liyou Zhou}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{University of Lincoln}\\
+Lincoln, UK \\
+https://orcid.org/0009-0005-9491-9003}
+}
+
+\maketitle
+
+\begin{abstract}
+Medical datasets were modelled by Bayesian Networks and Gaussian Processes.
+The techniques used in each approach is detailed in this report.
+The performance of each approach is evaluated using standardized metrics on a test data set.
+Their merits and suitability are discussed respectively.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Autonomous Robot, Pothole Inspection, ROS2, SLAM, Navigation, Computer Vision
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+In 2023 the RAC reported 29,377 call-outs for pothole-related breakdowns \cite{RACPotholeIndex}. They estimate at least one million potholes on UK roads and the government is spending billions of pounds to battle the problem.
+
+A wide range of research has been conducted to improve the efficiency of pothole detection by leveraging recent advances in computer vision and robotics. \cite{omanovicPotholeDetectionImage2013} proposes a pothole detection method from RGB images using conventional computer vision and Spectral clustering algorithms. Crack-pot \cite{anandCrackpotAutonomousRoad2018} improves upon this by employing a convolutional neural network for more accurate detection. \cite{kangPotholeDetectionSystem2017} further obtains 3d geometry of the pothole using a 2d lidar. \cite{RealTimePothole} proposes a novel detection method using only accelerometer data from a smart phone.
+\cite{brunoRobotizedRaspberryBasedSystem2023} Integrates a detection system with a mobile robot, and with the help of a GPS, localizes the potholes onto a digital map. However the system proposed is highly custom and proprietary. It is difficult to reproduce or extend on existing work.
+
+PotPatrol sets out to combine accurate vision based pothole detection with high precision localization and mapping in a fully autonomous pothole inspection robot. Leveraging open source software and off-the shelf hardware, PotPatrol is a low cost, highly extensible and reproducible system.
+
+\section{Methodology}
+
+\subsection{Hardware}
+
+The robot used in this project is an AgileRobotics Limo \cite{AgilexAi}. It is equipped with a EAI X2L LiDAR single line lidar \cite{YDLIDARX2_YDLIDARFocus} for localization and an Orbbec DaBai \cite{HomeORBBEC3D} depth camera for both depth and RGB image acquisition.
+
+\subsection{ROS 2 Integration}
+
+The Robot Operating System (ROS) is a set of open source software libraries and tools for building robot applications. AgileRobotics provides full ROS 2 integration for the limo robot as well as a Gazebo simulation environment for development. PotPatrol leverages the ROS 2 libraries and integrations to build functionalities such as pothole detection, mission planning and report aggregation for the specific task of autonomous pothole inspection.
+
+A gazebo simulation environment is used to validate the final solution. The environment is shown in Figure \ref{fig:gazebo}. It consists of a arena with road markings and obstacles. Simulated potholes are placed around the arena. A simulated robot is able to interact within the arena and be controlled fully from an abstracted ROS 2 interface.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{figures/simulation_environment.png}
+    \caption{Gazebo Simulation Environment}
+    \label{fig:gazebo}
+\end{figure}
+
+\subsection{Vision Based Pothole Detection}
+
+A convocational neural network is used to perform the pothole detection task in the RGB image. The network chosen is Faster RCNN\cite{renFasterRCNNRealTime2016} with a ResNet50\cite{heDeepResidualLearning2015} backbone. Due to its 2 stage pipeline nature, it is inherently slower than 1 stage networks such as YOLO\cite{redmonYOLOv3IncrementalImprovement2018}. However \cite{redmonYOLOv3IncrementalImprovement2018} reports that Faster RCNN is more accurate. But the more important reason for choosing Faster RCNN is its deep integration with the PyTorch framework. This allows for easy experimentation and extension of the network.
+
+A number of training images are collected from the simulation environment by driving around the simulated environment via tele-operation. Bounding boxes of potholes are labelled by hand. Fig.~\ref{fig:example_labelled_image} shows an example of a labelled image.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\textwidth]{figures/example_labelled_image.jpg}
+    \caption{Example of a labelled image. The red dot illustrates the reference points used in the pothole's 3d geometry estimation.}
+    \label{fig:example_labelled_image}
+\end{figure}
+
+To improve the robustness of detection and increase the number of training samples, images are randomly flipped horizontally during data loading. The network is then trained for 20 epochs achieving a final accurate of more than 90\% on the training set. The trained model is then exported as a torchscript file and used in the final solution.
+
+\subsection{Estimating Geometry of Potholes}\label{sec:estimate_geometry}
+
+Potholes are modelled as a flat circle. From the bounding box in 2d image pixel coordinates, it is necessary to estimate the centre and radius of the pothole in 3d map coordinates.
+To do this, 5 points are sampled from the bounding box. 1 from the centre of the rectangle and 4 at the centre of each of the edges. Fig.~\ref{fig:example_labelled_image} shows an illustration of the 5 sample points. The points are first localized to a ray in 3d space using the camera projection model. Then depth information from the depth camera is use to calculate how far along the ray the point sits. This gives us x, y, z coordinates in camera frame for all 5 points. The localization stack of the robot continuously publishes the transform between the camera frame and the map frame. This allows us to transform the 5 points into the map frame. The point at the centre of the bounding box is recorded as the centroid of the circle. The distance between the top and bottom point is calculated in map coordinates. Same is done for the left and right points. The maximum of the two distances is recorded as the diameter of the circle.
+
+\subsection{Merging Detections}
+
+The same pothole can be detected in multiple frames from the camera. A merging algorithm is used to ensure the robot always maintain a list of unique pothole at any given time.
+
+The location and size of all newly detected potholes are first estimated using the algorithm in \ref{sec:estimate_geometry}. Each new detection is then compared against the list of currently tracked potholes. If the new detection overlaps an existing pothole, the 2 are merged. The existing pothole is removed from the tracked list and the resultant new pothole is added to the end of the list of new detections so it can be checked against the rest of the tracked potholes. If the new detection does not overlap any existing potholes, it is added to the list of tracked potholes. This algorithm resolves situation where new detections overlap multiple existing potholes or where new detections overlap each other. A tracked list of unique non-overlapping potholes is always maintained.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.3\textwidth]{figures/circle_merging.png}
+    \caption{Illustration of merging 2 overlapping detections into a single pothole}
+    \label{fig:merging}
+\end{figure}
+
+Overlap is detected by calculating the euclidean distance of the centroids of the 2 potholes. If the distance is less than the sum of the radius of the 2 potholes, they are considered overlapping.
+
+When merging 2 detection, we want to create a new pothole that covers the area of both detections. Fig.~\ref{fig:merging} illustrates a situation where 2 circles overlap and we want to calculate the parameters of the new circle that perfectly clips both smaller circles. To do this we first calculate the vector:
+ \[\overrightarrow{C1C2} = \overrightarrow{C2} - \overrightarrow{C1}\].
+Then we can find the clipping points:
+\[\overrightarrow{P1} = \overrightarrow{C1} - \overrightarrow{C1C2}\]
+\[\overrightarrow{P2} = \overrightarrow{C2} + \overrightarrow{C1C2}\]
+Finally we can calculate the radius of the new circle:
+\[R3 = \frac{|\overrightarrow{P2} - \overrightarrow{P1}|}{2}\]
+\[\overrightarrow{C3} = \frac{\overrightarrow{P1} + \overrightarrow{P2}}{2}\]
+
+\subsection{Pothole Images}
+
+At the end of the inspection mission, a birds-eye-view image is produced for each pothole to form a report. Fig.~\ref{fig:pothole_image} shows an few examples of pothole images.
+
+For each pothole tracked by the robot, the source RGB image is tracked as well as the transform between odom and camera frames together with the pothole's geometry. At the end of the mission, a grid of points is sampled around the 3d coordinates of the pothole. Each point is then transformed from odom frame into camera frame and then projected onto the image pixel coordinates using the camera model. The color of the pixel can then be obtain from the source image at the pixel coordinates. The resultant image is a birds-eye-view of the pothole.
+
+It can be seen in Fig.~\ref{fig:pothole_image} that there are streaking artefact in some of the images. This is due to the saved image only showing part of the pothole. Where the projected pixel coordinates fall beyond the limits of the RGB image, the edge color is used to color the pixel. This happens when merging 2 detections or turning bounding boxes into circles, the resultant circle could sit beyond the edge of the RGB image.
+
+It can also be seen that the algorithm tend to overestimate the size of potholes as the generated images are not perfectly tight around the pothole. The reason for this is 2 fold. 1. The largest dimension of the bounding box is used as the diameter of the circle. The shape could be smaller in other dimensions 2. When merging detection, the resultant circle have 100\% coverage of the original 2 circles at the risk of overestimating.
+
+The images presented here are 128x128 pixels in size. This means 16,384 points need to be projected and sampled from the original image. This is a slow process. Hence the code is written to sample the points in parallel taking advantage of multiple CPU cores. This reduces the time from around 1 seconds to about 500 ms. However this is still not enough to run real-time, this is the reason the images are only generated at the end of a run.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.15\textwidth]{0.png}
+    \includegraphics[width=0.15\textwidth]{2.png}
+    \includegraphics[width=0.15\textwidth]{7.png}
+    \caption{Example image of pothole produced for the report}
+    \label{fig:pothole_image}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\textwidth]{pothole_map.png}
+    \caption{Example map of potholes produced at the end of a mission}
+    \label{fig:pothole_map}
+\end{figure}
+
+\subsection{Localization and Navigation}
+
+For localization and navigation, ROS 2's Nav 2 \cite{macenskiMarathonNavigationSystem2020} stack is used.
+
+The Adaptive Monte Carlo Localization (AMCL) package in Nav 2 is used to localize the robot within the map. AMCL is a probabilistic algorithm that uses a particle filter to track the pose of a robot against a known map. When the robot is first initialized in the world, its location is unknown, we instruct AMCL to perform a global initialization where it spread candidate poses throughout the map (Fig.~\ref{fig:global_initialisation}) and gradually converge on the correct pose as the robot obtains more sensor readings.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\textwidth]{global_initialisation.png}
+    \caption{AMCL performing global initialization. Red arrows show candidate poses spread throughout the map}
+    \label{fig:global_initialisation}
+\end{figure}
+
+To help the localization to converge, the robot is instructed to do a gentle spin to acquire sensor reading from different directions. Throughout this process, the covariance of the robot pose is monitored for convergence. As soon as the pose converge, the robot starts following a series of pre-recorded waypoints. The waypoints are set in RViz using the Nav 2 plugin. They are saved in a rosbag and loaded on launch of the inspection stack.
+
+
+\section{Conclusion}
+
+
+\bibliographystyle{IEEEtran}
+\bibliography{IEEEabrv,RobotProg.bib}
+
+\end{document}
