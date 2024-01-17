@@ -15,7 +15,7 @@
 
 \begin{document}
 
-\title{PotPatrol: An Open Source Autonomous Road Pothole Inspection Robot using ROS2}
+\title{PotPatrol: An Open Source Autonomous Road Pothole Inspection System}
 
 \author{\IEEEauthorblockN{Liyou Zhou}
 \IEEEauthorblockA{\textit{Department of Computer Science} \\
@@ -27,10 +27,7 @@ https://orcid.org/0009-0005-9491-9003}
 \maketitle
 
 \begin{abstract}
-Medical datasets were modelled by Bayesian Networks and Gaussian Processes.
-The techniques used in each approach is detailed in this report.
-The performance of each approach is evaluated using standardized metrics on a test data set.
-Their merits and suitability are discussed respectively.
+A large number of pothole are found on public roads every year. Autonomous robotic systems have huge potential in improving the efficiency of pothole inspection while reducing cost. In this paper, we propose PotPatrol, an open source autonomous pothole inspection system built on top of ROS 2. The proposed solution integrates a navigation system, a vision detection system, a tracking system and a reporting system to perform pothole detection tasks using a Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is highly extensible and reproducible.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -44,7 +41,7 @@ In 2023 the RAC reported 29,377 call-outs for pothole-related breakdowns \cite{R
 A wide range of research has been conducted to improve the efficiency of pothole detection by leveraging recent advances in computer vision and robotics. \cite{omanovicPotholeDetectionImage2013} proposes a pothole detection method from RGB images using conventional computer vision and Spectral clustering algorithms. Crack-pot \cite{anandCrackpotAutonomousRoad2018} improves upon this by employing a convolutional neural network for more accurate detection. \cite{kangPotholeDetectionSystem2017} further obtains 3d geometry of the pothole using a 2d lidar. \cite{RealTimePothole} proposes a novel detection method using only accelerometer data from a smart phone.
 \cite{brunoRobotizedRaspberryBasedSystem2023} Integrates a detection system with a mobile robot, and with the help of a GPS, localizes the potholes onto a digital map. However the system proposed is highly custom and proprietary. It is difficult to reproduce or extend on existing work.
 
-PotPatrol sets out to combine accurate vision based pothole detection with high precision localization and mapping in a fully autonomous pothole inspection robot. Leveraging open source software and off-the shelf hardware, PotPatrol is a low cost, highly extensible and reproducible system.
+In this paper, we propose an autonomous pothole inspect system: PotPatrol. PotPatrol sets out to combine accurate vision based pothole detection with high precision localization and mapping in a fully autonomous pothole inspection robot. Leveraging open source software and off-the shelf hardware, PotPatrol is a low cost, highly extensible and reproducible system.
 
 \section{Methodology}
 
@@ -131,13 +128,6 @@ The images presented here are 128x128 pixels in size. This means 16,384 points n
     \label{fig:pothole_image}
 \end{figure}
 
-\begin{figure}
-    \centering
-    \includegraphics[width=0.4\textwidth]{pothole_map.png}
-    \caption{Example map of potholes produced at the end of a mission}
-    \label{fig:pothole_map}
-\end{figure}
-
 \subsection{Localization and Navigation}
 
 For localization and navigation, ROS 2's Nav 2 \cite{macenskiMarathonNavigationSystem2020} stack is used.
@@ -153,9 +143,22 @@ The Adaptive Monte Carlo Localization (AMCL) package in Nav 2 is used to localiz
 
 To help the localization to converge, the robot is instructed to do a gentle spin to acquire sensor reading from different directions. Throughout this process, the covariance of the robot pose is monitored for convergence. As soon as the pose converge, the robot starts following a series of pre-recorded waypoints. The waypoints are set in RViz using the Nav 2 plugin. They are saved in a rosbag and loaded on launch of the inspection stack.
 
+\subsection{Pothole Location Map}
+
+Since detections are made and tracked in the odom frame, even if the odom to map transform is not accurate at the start of the mission, the detections are still consistent with each other. Hence the merging algorithm still works. At the end of the mission, the odom to map transform should be in a stable state and all locations are transformed into the map frame. All potholes detected are then drawn onto the map used for localization to produce a overall map (Fig.~\ref{fig:pothole_map}) to be included into the report.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\textwidth]{pothole_map.png}
+    \caption{Example map of potholes produced at the end of a mission}
+    \label{fig:pothole_map}
+\end{figure}
 
 \section{Conclusion}
 
+PotPatrol integrates a navigation system, vision detection system, a tracking system and a reporting system to produce a fully autonomous pothole inspection stack. Building on top of ROS 2, it interfaces seamlessly with the Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is also highly extensible and reproducible. The source code is available at:
+
+\verb|github.com/liyouzhou/robotprog|
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,RobotProg.bib}
