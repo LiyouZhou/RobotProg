@@ -12,6 +12,32 @@
 \usepackage{numprint}
 \usepackage[flushleft]{threeparttable}
 \graphicspath{{./figures}{../code/pothole_inspection/docs}{../code/pothole_inspection/example_inspection_report}}
+\usepackage{caption}
+\usepackage[colorlinks=True,linkcolor=black, citecolor=black,urlcolor=black,bookmarks=false,hypertexnames=true]{hyperref}
+\pagenumbering{arabic}
+
+\newcounter{nalg}[section] % defines algorithm counter for chapter-level
+\renewcommand{\thenalg}{\thesection .\arabic{nalg}} %defines appearance of the algorithm counter
+\DeclareCaptionLabelFormat{algocaption}{Algorithm \thenalg} % defines a new caption label as Algorithm x.y
+
+\lstnewenvironment{algorithm}[1][] %defines the algorithm listing environment
+{
+    \refstepcounter{nalg} %increments algorithm number
+    \captionsetup{labelformat=algocaption,labelsep=colon} %defines the caption setup for: it ises label format as the declared caption label above and makes label and caption text to be separated by a ':'
+    \lstset{ %this is the stype
+        mathescape=true,
+        frame=tB,
+        numbers=left,
+        numberstyle=\tiny,
+        basicstyle=\scriptsize,
+        keywordstyle=\color{black}\bfseries\em,
+        keywords={,input, output, return, datatype, function, in, if, else, foreach, while, begin, end, } %add the keywords you want, or load a language as Rubens explains in his comment above.
+        numbers=left,
+        xleftmargin=.04\textwidth,
+        #1 % this is to add specific settings to an usage of this environment (for instnce, the caption and referable label)
+    }
+}
+{}
 
 \begin{document}
 
@@ -27,7 +53,7 @@ https://orcid.org/0009-0005-9491-9003}
 \maketitle
 
 \begin{abstract}
-A large number of pothole are found on public roads every year. Autonomous robotic systems have huge potential in improving the efficiency of pothole inspection while reducing cost of road maintenance. In this paper, we propose PotPatrol, an open source autonomous pothole inspection system built on top of ROS 2. The proposed solution integrates a navigation system, a vision detection system, a tracking system and a reporting system to perform pothole detection tasks using a Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is highly extensible and reproducible.
+A large number of pothole are found on UK public roads every year. Autonomous robotic systems have huge potential in improving the efficiency of pothole inspection and thus reduce the cost of road maintenance. In this paper, we propose PotPatrol, an open source autonomous pothole inspection system built on top of ROS~2. The proposed solution integrates a navigation system, a vision detection system, a tracking system and a reporting system to perform pothole detection tasks using a wheeled robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is highly extensible and reproducible.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -36,31 +62,31 @@ Autonomous Robot, Pothole Inspection, ROS2, SLAM, Navigation, Computer Vision
 
 \section{Introduction}
 
-In 2023 the RAC reported 29,377 call-outs for pothole-related breakdowns \cite{RACPotholeIndex}. They estimate at least one million potholes on UK roads and the government is spending billions of pounds to battle the problem.
+In 2023 the RAC reported 29,377 call-outs for pothole-related breakdowns in the UK \cite{RACPotholeIndex}. They estimate at least one million potholes on UK public roads and the government is spending billions of pounds to battle the problem.
 
-A wide range of research has been conducted to improve the efficiency of pothole detection by leveraging recent advances in computer vision and robotics. \cite{omanovicPotholeDetectionImage2013} proposes a pothole detection method from RGB images using conventional computer vision and Spectral clustering algorithms. Crack-pot \cite{anandCrackpotAutonomousRoad2018} improves upon this by employing a convolutional neural network for more accurate detection. \cite{kangPotholeDetectionSystem2017} further obtains 3d geometry of the pothole using a 2d lidar. \cite{RealTimePothole} proposes a novel detection method using only accelerometer data from a smart phone.
-\cite{brunoRobotizedRaspberryBasedSystem2023} Integrates a detection system with a mobile robot, and with the help of a GPS, localizes the potholes onto a digital map. However the system proposed is highly custom and proprietary. It is difficult to reproduce or extend on existing work.
+A wide range of research has been conducted to improve the efficiency of pothole detection by leveraging recent advances in computer vision and robotics. \cite{omanovicPotholeDetectionImage2013} proposes a pothole detection method from RGB images using conventional computer vision and spectral clustering algorithms. Crack-pot \cite{anandCrackpotAutonomousRoad2018} improves upon this by employing a convolutional neural network for more accurate detection. \cite{kangPotholeDetectionSystem2017} further obtains 3D geometry of the pothole using a 2D lidar. \cite{RealTimePothole} proposes a novel detection method using only accelerometer data from a smart phone.
+\cite{brunoRobotizedRaspberryBasedSystem2023} integrates a detection system with a mobile robot, and with the help of a GPS, localizes the potholes onto a digital map. However the systems proposed are highly custom and proprietary. It is difficult to reproduce or extend on existing work.
 
-In this paper, we propose an autonomous pothole inspect system: PotPatrol. PotPatrol sets out to combine accurate vision based pothole detection with high precision localization and mapping in a fully autonomous pothole inspection robot. Leveraging open source software and off-the shelf hardware, PotPatrol is a low cost, highly extensible and reproducible system.
+In this paper, we put forward an open source autonomous pothole inspect system: PotPatrol. The system combines accurate neural network based pothole detection with high precision localization and navigation in a fully autonomous pothole inspection robot. Leveraging open source software and off-the shelf hardware, PotPatrol is a low cost, highly extendable and reproducible system.
 
 \section{Methodology}
 
 \subsection{Robot Hardware}
 
-The robot used in this project is an AgileRobotics Limo \cite{AgilexAi}. It is equipped with a EAI X2L LiDAR single line lidar \cite{YDLIDARX2_YDLIDARFocus} for localization and an Orbbec DaBai \cite{HomeORBBEC3D} depth camera for both depth and RGB image acquisition. AgileRobotics provides full ROS 2 integration for the limo robot as well as a Gazebo simulation environment for development.
+The robot used in this project is an AgileRobotics Limo \cite{AgilexAi}. It is equipped with a EAI X2L single line lidar \cite{YDLIDARX2_YDLIDARFocus} for localization and an Orbbec DaBai \cite{HomeORBBEC3D} RGBD camera for both depth and RGB image acquisition. AgileRobotics provides full ROS~2 integration for the limo robot as well as a Gazebo simulation model for application development.
 
 \subsection{Software Structure}
 
-PotPatrol is built on top of ROS 2 and utilizes off the shelf software stack such as Nav 2, RViz and Gazebo. In addition PotPatrol provides the following custom components:
+PotPatrol is built on top of ROS~2 and utilizes off the shelf software packages such as Nav~2, RViz and Gazebo. In addition, PotPatrol provides the following custom components:
 
 \begin{itemize}
     \item \textbf{Object Detection Node}: Runs a neural network to detect potholes from RGB camera image. Publishes detections as bounding boxes.
     \item \textbf{Detection Aggregation Node}: Maintain a list of detected potholes, their location, dimensions and image. Merges multiple detections of the same pothole.
     \item \textbf{Waypoint Mission Node}: Instruct the robot to initialize, localize and navigate through a series of waypoints to cover the inspection area. Interfaces with the Nav2 stack for localization, planning and control.
-    \item \textbf{Report Generator Node}: Implements a service interface to generates a inspection report detailing the list of detected potholes and a map with there locations.
+    \item \textbf{Report Generator Node}: Implements a service interface to generates a inspection report detailing the list of detected potholes and a map with their locations.
 \end{itemize}
 
-The nodes also works with RViz to visualize detected potholes in real-time and display a counter. Fig.~\ref{fig:rviz_visualisation} shows a screenshot of RViz with PotPatrol running.
+The nodes also works with RViz to visualize detected potholes in real-time and display a counter. Fig.~\ref{fig:rviz_visualisation} shows a screenshot of RViz running with PotPatrol.
 
 \begin{figure}
     \centering
@@ -71,62 +97,77 @@ The nodes also works with RViz to visualize detected potholes in real-time and d
 
 \subsection{Vision Based Pothole Detection}
 
-A convocational neural network is used to perform the pothole detection task in the RGB image. The network chosen is Faster RCNN\cite{renFasterRCNNRealTime2016} with a ResNet50\cite{heDeepResidualLearning2015} backbone. Due to its 2 stage pipeline nature, it is inherently slower than 1 stage networks such as YOLO\cite{redmonYOLOv3IncrementalImprovement2018}. However \cite{redmonYOLOv3IncrementalImprovement2018} reports that Faster RCNN is more accurate. But the more important reason for choosing Faster RCNN is its is packaged natively with the PyTorch framework. This allows for very easy experimentation and extension of the network.
+A convocational neural network is used to perform the pothole detection task in the RGB image. The network chosen is Faster RCNN\cite{renFasterRCNNRealTime2016} with a ResNet50\cite{heDeepResidualLearning2015} backbone. Due to its 2 stage pipeline nature, it is inherently slower than 1 stage networks such as YOLO\cite{redmonYOLOv3IncrementalImprovement2018}. However \cite{redmonYOLOv3IncrementalImprovement2018} reports that Faster RCNN is more accurate. But the more important reason for choosing Faster RCNN is that it is packaged natively with the PyTorch framework. This allows for very easy experimentation and extension.
 
-172 training images are collected from the simulation environment by driving around via tele-operation and recording the camera sensor via ROS 2's \verb|rosbag| utility. Bounding boxes of potholes are labelled by hand. Fig.~\ref{fig:example_labelled_image} shows an example of a labelled image.
+172 training images are collected from the simulation environment by driving the robot via tele-operation while recording the camera sensor via ROS~2's \verb|rosbag| utility. The images are subsequently extracted from the rosbag and bounding boxes of potholes are labelled by hand. Fig.~\ref{fig:example_labelled_image} shows an example of a labelled image.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.4\textwidth]{example_labelled_image.jpg}
-    \caption{Example of a labelled image. The red dot illustrates the reference points used in the pothole's 3d geometry estimation.}
+    \caption{Example of a labelled image. The red dot illustrates the reference points used in the pothole's 3D geometry estimation.}
     \label{fig:example_labelled_image}
 \end{figure}
 
-To improve the robustness of detection and increase the number of training samples, images are randomly flipped horizontally during data loading. The network is then trained for 20 epochs achieving a final accurate of more than 90\% on the training set. The trained model is then exported as a torchscript file and used in the final solution.
+To improve the robustness of detection and increase the number of training samples, images are randomly flipped horizontally during data loading. The network is then trained for 20 epochs achieving a final accurate of more than 90\% on the training set. The trained model is then exported as a torchscript file and loaded by \textbf{Object Detection Node} when the stack is launched.
+
+Using a machine learning approach to detection allows the robot to be deployed in a wide range of environment by training the network on different datasets. With sufficient amount of data and augmentation, the network can be trained to to be robust in a variety of weather, lighting and road conditions.
 
 \subsection{Estimating Geometry of Potholes}\label{sec:estimate_geometry}
 
-Potholes are modelled as a flat circle. From the bounding box in 2d image pixel coordinates, it is necessary to estimate the centre and radius of the pothole in 3d map coordinates.
-To do this, 5 points are sampled from the bounding box. 1 from the centre of the rectangle and 4 at the centre of each of the edges. Fig.~\ref{fig:example_labelled_image} shows an illustration of the 5 sample points. The points are first localized to a ray in 3d space using the camera projection model. Then depth information from the depth camera is use to calculate how far along the ray the point sits. This gives us x, y, z coordinates in camera frame for all 5 points. The localization stack of the robot continuously publishes the transform between the camera frame and the map frame. This allows us to transform the 5 points into the map frame. The point at the centre of the bounding box is recorded as the centroid of the circle. The distance between the top and bottom point is calculated in map coordinates. Same is done for the left and right points. The maximum of the two distances is recorded as the diameter of the circle.
+Potholes are modelled and tracked as a flat circle. From the bounding box in 2D image pixel coordinates, it is necessary to estimate the centre and radius of the pothole in 3D map coordinates.
+To do this, 5 points are sampled from the bounding box. 1 from the centre of the rectangle and 4 at the mid-point of each of the edges. Fig.~\ref{fig:example_labelled_image} shows an illustration of the 5 sample points. The points are first localized to a ray in 3D space using the camera projection model. The depth information from the depth camera is then use to calculate how far along the ray the point sits. The x, y, z coordinates in camera frame can then be calculated by multiplying a unit vector along the ray with the depth value. The points are quickly transformed into odom coordinates so that they share a stationary reference frame with all previous detections. The point from the centre of the bounding box is recorded as the centroid of the circle. The distance between the top and bottom point is calculated in odom coordinates. The same is done for the left and right points. The larger of the two distances is recorded as the diameter of the circle.
 
 \subsection{Merging Detections}
 
 The same pothole can be detected in multiple frames from the camera. A merging algorithm is used to ensure the robot always maintain a list of unique pothole at any given time.
 
-The location and size of all newly detected potholes are first estimated using the algorithm in \ref{sec:estimate_geometry}. Each new detection is then compared against the list of currently tracked potholes. If the new detection overlaps an existing pothole, the 2 are merged. The existing pothole is removed from the tracked list and the resultant new pothole is added to the end of the list of new detections so it can be checked against the rest of the tracked potholes. If the new detection does not overlap any existing potholes, it is added to the list of tracked potholes. This algorithm resolves situation where new detections overlap multiple existing potholes or where new detections overlap each other. A tracked list of unique non-overlapping potholes is always maintained.
+The location and size of all newly detected potholes are first estimated using the algorithm in Section~\ref{sec:estimate_geometry}. Each new detection is then compared against the list of currently tracked potholes. If a new detection overlaps an existing pothole, the two are merged. The existing pothole is removed from the tracked list and the merged pothole is added to the list of new detections so it can be checked against the existing potholes again. If the new detection does not overlap any existing potholes, it is added to the list of tracked potholes. This algorithm resolves situation where new detections overlap multiple existing potholes or where new detections overlap each other. A tracked list of unique non-overlapping potholes is always maintained. Algorithm~\ref{alg1} shows the pseudocode for this merging algorithm.
 
-\begin{figure}
+\begin{algorithm}[caption={Merge New Detection with Tracked Potholes}, label={alg1}]
+function update_tracked_potholes(
+    Pothole[] new_dets,
+    Pothole[] tracked
+):
+    while new_dets not empty:
+        det = new_dets.pop()
+        has_overlap $\gets$ false
+        for pth in tracked:
+            if overlaps(det, pothole):
+                tracked $\gets$ tracked.remove(pth)
+                det $\gets$ new_det.push(merge(det, pth))
+                has_overlap $\gets$ true
+                break
+        if not has_overlap:
+            tracked $\gets$ tracked.append(det)
+    return tracked
+\end{algorithm}
+
+Overlap is detected by calculating the euclidean distance of the centroids of the 2 potholes. If the distance is less than the 90\% of sum of the radiuses, they are considered overlapping.
+
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.3\textwidth]{circle_merging.png}
     \caption{Illustration of merging 2 overlapping detections into a single pothole}
     \label{fig:merging}
 \end{figure}
 
-Overlap is detected by calculating the euclidean distance of the centroids of the 2 potholes. If the distance is less than the sum of the radius of the 2 potholes, they are considered overlapping.
-
-When merging 2 detection, we want to create a new pothole that covers the area of both detections. Fig.~\ref{fig:merging} illustrates a situation where 2 circles overlap and we want to calculate the parameters of the new circle that perfectly clips both smaller circles. To do this we first calculate the vector:
+When merging 2 detection, we want to create a new pothole that covers the area of both detections. Fig.~\ref{fig:merging} illustrates this merging scenario. The goal is to calculate the parameters of the new circle which perfectly clips both smaller circles. To do this we first calculate the vector:
  \[\overrightarrow{C1C2} = \overrightarrow{C2} - \overrightarrow{C1}\].
 Then we can find the clipping points:
-\[\overrightarrow{P1} = \overrightarrow{C1} - \overrightarrow{C1C2}\]
-\[\overrightarrow{P2} = \overrightarrow{C2} + \overrightarrow{C1C2}\]
-Finally we can calculate the radius of the new circle:
-\[R3 = \frac{|\overrightarrow{P2} - \overrightarrow{P1}|}{2}\]
+\[\overrightarrow{P1} = \overrightarrow{C1} -  R1 \times \frac{\overrightarrow{C1C2}}{|\overrightarrow{C1C2}|}\]
+\[\overrightarrow{P2} = \overrightarrow{C2} + R2 \times \frac{\overrightarrow{C1C2}}{|\overrightarrow{C1C2}|}\]
+Finally we can calculate the centroid and radius of the new circle:
 \[\overrightarrow{C3} = \frac{\overrightarrow{P1} + \overrightarrow{P2}}{2}\]
+\[R3 = \frac{|\overrightarrow{P2} - \overrightarrow{P1}|}{2}\]
+The special case where one circle is wholely inside the other is handled by simply taking the larger circle as the new circle.
 
 \subsection{Pothole Images}
 
 At the end of the inspection mission, a birds-eye-view image is produced for each pothole to form a report. Fig.~\ref{fig:pothole_image} shows an few examples of pothole images.
 
-For each pothole tracked by the robot, the source RGB image is tracked as well as the transform between odom and camera frames together with the pothole's geometry. At the end of the mission, a grid of points is sampled around the 3d coordinates of the pothole. Each point is then transformed from odom frame into camera frame and then projected onto the image pixel coordinates using the camera model. The color of the pixel can then be obtain from the source image at the pixel coordinates. The resultant image is a birds-eye-view of the pothole.
+For each pothole detection tracked by the robot, the source RGB image is tracked as well as the transform between odom and camera frames. At the end of the mission, a grid of points is sampled around the 3D coordinates of the pothole. Each point is then transformed from odom frame into camera frame and then projected into image pixel coordinates using the camera model. The color of the pixel can then be obtain from the source image at the pixel coordinates. The resultant image is a birds-eye-view of the pothole.
 
-It can be seen in Fig.~\ref{fig:pothole_image} that there are streaking artefact in some of the images. This is due to the saved image only showing part of the pothole. Where the projected pixel coordinates fall beyond the limits of the RGB image, the edge color is used to color the pixel. This happens when merging 2 detections or turning bounding boxes into circles, the resultant circle could sit beyond the edge of the RGB image.
-
-It can also be seen that the algorithm tend to overestimate the size of potholes as the generated images are not perfectly tight around the pothole. The reason for this is 2 fold. 1. The largest dimension of the bounding box is used as the diameter of the circle. The shape could be smaller in other dimensions 2. When merging detection, the resultant circle have 100\% coverage of the original 2 circles at the risk of overestimating.
-
-The images presented here are 128x128 pixels in size. This means 16,384 points need to be projected and sampled from the original image. This is a slow process. Hence the code is written to sample the points in parallel taking advantage of multiple CPU cores. This reduces the time from around 1 seconds to about 500 ms. However this is still not enough to run real-time, this is the reason the images are only generated at the end of a run.
-
-
-\begin{figure}
+\begin{figure}[h]
     \centering
     \includegraphics[width=0.15\textwidth]{0.png}
     \includegraphics[width=0.15\textwidth]{2.png}
@@ -135,11 +176,17 @@ The images presented here are 128x128 pixels in size. This means 16,384 points n
     \label{fig:pothole_image}
 \end{figure}
 
+It can be seen in Fig.~\ref{fig:pothole_image} that there are streaking artefact in some of the images. This is due to the saved image only showing part of the pothole. Where the projected pixel coordinates fall beyond the limits of the RGB image, the edge color is used to color the pixel. This happens when merging 2 detections or turning bounding boxes into circles, the resultant circle could sit beyond the edge of the RGB image.
+
+It can also be seen that the algorithm tend to overestimate the size of potholes as the generated images are not perfectly tight around the pothole. The reason for this is 2 fold. 1. The largest dimension of the bounding box is used as the diameter of the circle. The shape could be smaller in other dimensions 2. When merging detection, the resultant circle have 100\% coverage of the original 2 circles at the risk of overestimating.
+
+The images presented here are 128x128 pixels in size. This means 16,384 points need to be projected and sampled from the original image. This is a computationally demanding process. Hence the code is written to sample the points in parallel taking advantage of multiple CPU cores. This reduces the time from around 1 s to about 500 ms. When the robot tracks 10s of potholes at any given time, this is still not fast enough to run in real-time. Hence the images are only generated at the end of a run.
+
 \subsection{Localization and Navigation}
 
-For localization and navigation, ROS 2's Nav 2 \cite{macenskiMarathonNavigationSystem2020} stack is used.
+Localization and navigation are facilitated by the utilization of ROS~2's Nav~2 library \cite{macenskiMarathonNavigationSystem2020}, a widely recognized framework in the field of robotics.
 
-The Adaptive Monte Carlo Localization (AMCL) package in Nav 2 is used to localize the robot within the map. AMCL is a probabilistic algorithm that uses a particle filter to track the pose of a robot against a known map. When the robot is first initialized in the world, its location is unknown, we instruct AMCL to perform a global initialization where it spread candidate poses throughout the map (Fig.~\ref{fig:global_initialisation}) and gradually converge on the correct pose as the robot obtains more sensor readings.
+The Adaptive Monte Carlo Localization (AMCL) package in Nav~2 is used to localize the robot within the map. AMCL is a probabilistic algorithm that uses a particle filter to track the pose of a robot against a known map. When the robot is first initialized in the world, its location is unknown, we instruct AMCL to perform a global initialization where it spreads candidate poses throughout the map (Fig.~\ref{fig:global_initialisation}) and gradually refine the pose estimates as the robot obtains more sensor reading.
 
 \begin{figure}
     \centering
@@ -148,11 +195,11 @@ The Adaptive Monte Carlo Localization (AMCL) package in Nav 2 is used to localiz
     \label{fig:global_initialisation}
 \end{figure}
 
-To help the localization to converge, the robot is instructed to do a gentle spin to acquire sensor reading from different directions. Throughout this process, the covariance of the robot pose is monitored for convergence. As soon as the pose converge, the robot starts following a series of pre-recorded waypoints. The waypoints are set in RViz using the Nav 2 plugin. They are saved in a rosbag and loaded on launch of the inspection stack.
+To help the localization converge, the robot is instructed to gently spin in order to acquire sensor reading from different directions. Throughout this process, the covariance of the robot pose is monitored for convergence. As soon as the pose converge, the robot starts to follow a series of pre-recorded waypoints. The waypoints are picked manually in RViz using the Nav~2 plugin. They are saved in a rosbag and loaded on launch of the inspection stack.
 
 \subsection{Pothole Location Map}
 
-Since detections are made and tracked in the odom frame, even if the odom to map transform is not accurate at the start of the mission, the detections are still consistent with each other. Hence the merging algorithm still works. At the end of the mission, the odom to map transform should be in a stable state and all locations are transformed into the map frame. All potholes detected are then drawn onto the map used for localization to produce a overall map (Fig.~\ref{fig:pothole_map}) to be included into the report.
+Since detections are made and tracked in the odom frame of reference, even if the odom to map transform is not accurate at the start of the mission, the detections are still consistent with each other. Hence the tracking and merging algorithm still works as intended. At the end of the mission, the odom to map transform should be in a stable state and all coordinates are transformed into the map frame. All potholes detected are then drawn onto the map used for localization to produce a overview (Fig.~\ref{fig:pothole_map}) to be included in the final report.
 
 \begin{figure}
     \centering
@@ -163,7 +210,7 @@ Since detections are made and tracked in the odom frame, even if the odom to map
 
 \section{Evaluation}
 
-A gazebo simulation environment is used to validate the final solution. The environment is shown in Figure \ref{fig:gazebo}. It consists of a arena with road markings and obstacles. Simulated potholes are placed around the arena. A simulated limo robot is able to interact within the arena and be controlled fully from an abstracted ROS 2 interface.
+A Gazebo\cite{koenigDesignUseParadigms2004} simulation environment is used to validate the final solution. The environment is shown in Figure \ref{fig:gazebo}. It consists of a arena with road markings and obstacles. Simulated potholes are placed around the arena. A simulated limo robot is able to interact within the arena and be controlled fully from an abstracted ROS~2 interface.
 
 \begin{figure}[h]
     \centering
@@ -172,7 +219,7 @@ A gazebo simulation environment is used to validate the final solution. The envi
     \label{fig:gazebo}
 \end{figure}
 
-The robot is driven using the PotPatrol stack and the resultant detections are plotted against the texture map used in the simulator. The results are shown in Fig.~ \ref{fig:plot_on_texture}. It can be seen that the system is able to detect the potholes accurately. The size of the potholes are also estimated mostly correctly but tends to overestimate for reasons explained in Section \ref{sec:estimate_geometry}. In the case of detection No. 14 the pedestrian crossing is falsely recognized as a pothole. This can be solved by training the detection neural network with more data.
+The robot is driven using the PotPatrol stack. It was able to navigate around the arena autonomously, planning obstacle free paths between waypoints while maintaining and displaying a list of detected potholes. A report is successfully generated at the end of the missing with a list of detection location, size and image of the pothole. The detections from the report are plotted against the texture map used in the simulator in Fig.~\ref{fig:plot_on_texture}. It can be seen that the system is able to detect the potholes accurately. The size of the potholes are estimated mostly correctly but tends to overestimate for reasons explained in Section \ref{sec:estimate_geometry}. In the case of detection No.~7 and 14 the pedestrian crossing is falsely recognized as part of a pothole. This can be improved by training the detection neural network with more data.
 
 \begin{figure}[h]
     \centering
@@ -183,9 +230,9 @@ The robot is driven using the PotPatrol stack and the resultant detections are p
 
 \section{Conclusion}
 
-PotPatrol integrates a navigation system, vision detection system, a tracking system and a reporting system to produce a fully autonomous pothole inspection stack. Building on top of ROS 2, it interfaces seamlessly with the Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is also highly extensible and reproducible. The source code is available at:
+PotPatrol integrates a navigation system, a vision detection system, a tracking system and a reporting system to produce a fully autonomous pothole inspection stack. Building on top of ROS~2, it interfaces seamlessly with the Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is also highly extensible and reproducible. The source code together with all artifacts are available at:
 
-\verb|github.com/liyouzhou/robotprog|
+\verb|https://github.com/liyouzhou/robotprog|
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,RobotProg.bib}
