@@ -10,14 +10,19 @@ from threading import Event
 from ament_index_python.packages import get_package_share_directory
 
 from pothole_inspection.srv import ReportAggregatedDetections, GenerateReport
+from geometry_msgs.msg import Pose
+
 from cv_bridge import CvBridge
+from tf2_ros import Buffer, TransformListener
+from tf2_geometry_msgs import do_transform_pose
 import cv2
 import yaml
 from matplotlib import pyplot as plt
 from matplotlib.patches import Circle
 import numpy as np
 
-plt.switch_backend('agg')
+plt.switch_backend("agg")
+
 
 class ReportGeneratorNode(Node):
     def __init__(self):
@@ -40,6 +45,9 @@ class ReportGeneratorNode(Node):
         )
         self.bridge = CvBridge()
 
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
     def generate_report_callback(self, request, response):
         """
         Generates a report of the detected pothole.
@@ -50,10 +58,22 @@ class ReportGeneratorNode(Node):
         self.get_logger().info("requesting aggregated detections...")
         aggregated_detections = self.cli.call(req)
 
+        # request the latest transform from the map to the odom
+        transform = None
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "map", "odom", rclpy.time.Time()
+            )
+        except Exception as e:
+            self.get_logger().warning(f"Failed to lookup transform: {str(e)}")
+            return response
+
+        # Create a folder for the report
         report_path = request.path
         os.makedirs(report_path, exist_ok=True)
 
-        now = datetime.now()  # current date and time
+        # write current date and time
+        now = datetime.now()
         date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
 
         # Plot pothole locations on a map
@@ -88,15 +108,21 @@ class ReportGeneratorNode(Node):
             image_path = f"{report_path}/{idx}.png"
             cv2.imwrite(image_path, image)
 
-            report += f"| {idx} | {pth.x:.04f} | {pth.y:.04f} | {pth.z:.04f} | {pth.radius:.04f} | ![]({idx}.png) |\n"
+            p = Pose()
+            p.position.x = pth.x
+            p.position.y = pth.y
+            p.position.z = pth.z
+            p_map = do_transform_pose(p, transform)
 
-            x = (pth.x - origin[0]) / resolution
-            y = (pth.y - origin[1]) / resolution
+            report += f"| {idx} | {p_map.position.x:.04f} | {p_map.position.y:.04f} | {p_map.position.z:.04f} | {pth.radius:.04f} | ![]({idx}.png) |\n"
+
+            x = (p_map.position.x - origin[0]) / resolution
+            y = (p_map.position.y - origin[1]) / resolution
             radius = pth.radius / resolution
             c = Circle((x, y), radius, color="g", fill=False)
             plt.gca().add_patch(c)
 
-            plt.text(x+1, y+0.5, f"{idx}", fontsize = 6, color="gray")
+            plt.text(x + 1, y + 0.5, f"{idx}", fontsize=6, color="gray")
 
         plt.gca().invert_xaxis()
         plt.tight_layout()
