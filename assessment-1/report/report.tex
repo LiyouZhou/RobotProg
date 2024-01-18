@@ -11,7 +11,7 @@
 \usepackage{booktabs}
 \usepackage{numprint}
 \usepackage[flushleft]{threeparttable}
-\graphicspath{{figures/}{../code/pothole_inspection/docs}{../code/pothole_inspection/example_inspection_report}}
+\graphicspath{{./figures}{../code/pothole_inspection/docs}{../code/pothole_inspection/example_inspection_report}}
 
 \begin{document}
 
@@ -27,7 +27,7 @@ https://orcid.org/0009-0005-9491-9003}
 \maketitle
 
 \begin{abstract}
-A large number of pothole are found on public roads every year. Autonomous robotic systems have huge potential in improving the efficiency of pothole inspection while reducing cost. In this paper, we propose PotPatrol, an open source autonomous pothole inspection system built on top of ROS 2. The proposed solution integrates a navigation system, a vision detection system, a tracking system and a reporting system to perform pothole detection tasks using a Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is highly extensible and reproducible.
+A large number of pothole are found on public roads every year. Autonomous robotic systems have huge potential in improving the efficiency of pothole inspection while reducing cost of road maintenance. In this paper, we propose PotPatrol, an open source autonomous pothole inspection system built on top of ROS 2. The proposed solution integrates a navigation system, a vision detection system, a tracking system and a reporting system to perform pothole detection tasks using a Limo robot. It's performance is evaluated in a simulated environment and is found to detect and track potholes accurately. The system is highly extensible and reproducible.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -45,32 +45,39 @@ In this paper, we propose an autonomous pothole inspect system: PotPatrol. PotPa
 
 \section{Methodology}
 
-\subsection{Hardware}
+\subsection{Robot Hardware}
 
-The robot used in this project is an AgileRobotics Limo \cite{AgilexAi}. It is equipped with a EAI X2L LiDAR single line lidar \cite{YDLIDARX2_YDLIDARFocus} for localization and an Orbbec DaBai \cite{HomeORBBEC3D} depth camera for both depth and RGB image acquisition.
+The robot used in this project is an AgileRobotics Limo \cite{AgilexAi}. It is equipped with a EAI X2L LiDAR single line lidar \cite{YDLIDARX2_YDLIDARFocus} for localization and an Orbbec DaBai \cite{HomeORBBEC3D} depth camera for both depth and RGB image acquisition. AgileRobotics provides full ROS 2 integration for the limo robot as well as a Gazebo simulation environment for development.
 
-\subsection{ROS 2 Integration}
+\subsection{Software Structure}
 
-The Robot Operating System (ROS) is a set of open source software libraries and tools for building robot applications. AgileRobotics provides full ROS 2 integration for the limo robot as well as a Gazebo simulation environment for development. PotPatrol leverages the ROS 2 libraries and integrations to build functionalities such as pothole detection, mission planning and report aggregation for the specific task of autonomous pothole inspection.
+PotPatrol is built on top of ROS 2 and utilizes off the shelf software stack such as Nav 2, RViz and Gazebo. In addition PotPatrol provides the following custom components:
 
-A gazebo simulation environment is used to validate the final solution. The environment is shown in Figure \ref{fig:gazebo}. It consists of a arena with road markings and obstacles. Simulated potholes are placed around the arena. A simulated robot is able to interact within the arena and be controlled fully from an abstracted ROS 2 interface.
+\begin{itemize}
+    \item \textbf{Object Detection Node}: Runs a neural network to detect potholes from RGB camera image. Publishes detections as bounding boxes.
+    \item \textbf{Detection Aggregation Node}: Maintain a list of detected potholes, their location, dimensions and image. Merges multiple detections of the same pothole.
+    \item \textbf{Waypoint Mission Node}: Instruct the robot to initialize, localize and navigate through a series of waypoints to cover the inspection area. Interfaces with the Nav2 stack for localization, planning and control.
+    \item \textbf{Report Generator Node}: Implements a service interface to generates a inspection report detailing the list of detected potholes and a map with there locations.
+\end{itemize}
 
-\begin{figure}[h]
+The nodes also works with RViz to visualize detected potholes in real-time and display a counter. Fig.~\ref{fig:rviz_visualisation} shows a screenshot of RViz with PotPatrol running.
+
+\begin{figure}
     \centering
-    \includegraphics[width=0.4\textwidth]{figures/simulation_environment.png}
-    \caption{Gazebo Simulation Environment}
-    \label{fig:gazebo}
+    \includegraphics[width=0.48\textwidth]{rviz_screenshot.png}
+    \caption{RViz visualization of PotPatrol}
+    \label{fig:rviz_visualisation}
 \end{figure}
 
 \subsection{Vision Based Pothole Detection}
 
-A convocational neural network is used to perform the pothole detection task in the RGB image. The network chosen is Faster RCNN\cite{renFasterRCNNRealTime2016} with a ResNet50\cite{heDeepResidualLearning2015} backbone. Due to its 2 stage pipeline nature, it is inherently slower than 1 stage networks such as YOLO\cite{redmonYOLOv3IncrementalImprovement2018}. However \cite{redmonYOLOv3IncrementalImprovement2018} reports that Faster RCNN is more accurate. But the more important reason for choosing Faster RCNN is its deep integration with the PyTorch framework. This allows for easy experimentation and extension of the network.
+A convocational neural network is used to perform the pothole detection task in the RGB image. The network chosen is Faster RCNN\cite{renFasterRCNNRealTime2016} with a ResNet50\cite{heDeepResidualLearning2015} backbone. Due to its 2 stage pipeline nature, it is inherently slower than 1 stage networks such as YOLO\cite{redmonYOLOv3IncrementalImprovement2018}. However \cite{redmonYOLOv3IncrementalImprovement2018} reports that Faster RCNN is more accurate. But the more important reason for choosing Faster RCNN is its is packaged natively with the PyTorch framework. This allows for very easy experimentation and extension of the network.
 
-A number of training images are collected from the simulation environment by driving around the simulated environment via tele-operation. Bounding boxes of potholes are labelled by hand. Fig.~\ref{fig:example_labelled_image} shows an example of a labelled image.
+172 training images are collected from the simulation environment by driving around via tele-operation and recording the camera sensor via ROS 2's \verb|rosbag| utility. Bounding boxes of potholes are labelled by hand. Fig.~\ref{fig:example_labelled_image} shows an example of a labelled image.
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.4\textwidth]{figures/example_labelled_image.jpg}
+    \includegraphics[width=0.4\textwidth]{example_labelled_image.jpg}
     \caption{Example of a labelled image. The red dot illustrates the reference points used in the pothole's 3d geometry estimation.}
     \label{fig:example_labelled_image}
 \end{figure}
@@ -90,7 +97,7 @@ The location and size of all newly detected potholes are first estimated using t
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.3\textwidth]{figures/circle_merging.png}
+    \includegraphics[width=0.3\textwidth]{circle_merging.png}
     \caption{Illustration of merging 2 overlapping detections into a single pothole}
     \label{fig:merging}
 \end{figure}
@@ -149,9 +156,29 @@ Since detections are made and tracked in the odom frame, even if the odom to map
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.4\textwidth]{pothole_map.png}
+    \includegraphics[width=0.4\textwidth]{plot_on_map.png}
     \caption{Example map of potholes produced at the end of a mission}
     \label{fig:pothole_map}
+\end{figure}
+
+\section{Evaluation}
+
+A gazebo simulation environment is used to validate the final solution. The environment is shown in Figure \ref{fig:gazebo}. It consists of a arena with road markings and obstacles. Simulated potholes are placed around the arena. A simulated limo robot is able to interact within the arena and be controlled fully from an abstracted ROS 2 interface.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{simulation_environment.png}
+    \caption{Gazebo Simulation Environment}
+    \label{fig:gazebo}
+\end{figure}
+
+The robot is driven using the PotPatrol stack and the resultant detections are plotted against the texture map used in the simulator. The results are shown in Fig.~ \ref{fig:plot_on_texture}. It can be seen that the system is able to detect the potholes accurately. The size of the potholes are also estimated mostly correctly but tends to overestimate for reasons explained in Section \ref{sec:estimate_geometry}. In the case of detection No. 14 the pedestrian crossing is falsely recognized as a pothole. This can be solved by training the detection neural network with more data.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.48\textwidth]{plot_on_texture.png}
+    \caption{Final pothole detections plotted on the texture map used in the simulator}
+    \label{fig:plot_on_texture}
 \end{figure}
 
 \section{Conclusion}
